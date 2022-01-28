@@ -1,5 +1,6 @@
 #define ENCODER_OPTIMIZE_INTERRUPTS
-#include <Encoder.h>
+//#include <Encoder.h>
+#include <RotaryEncoder.h>
 #include <Bounce2.h>
 
 static const int LEFT_BUTTON = 1;
@@ -11,26 +12,24 @@ long lastScrollPosition = -999;
 
 Bounce buttonL = Bounce();
 Bounce buttonR = Bounce();
-//Bounce buttonL = Bounce(LEFT_BUTTON, 10);
-//Bounce buttonR = Bounce(RIGHT_BUTTON, 10);
-Encoder scrollWheel(ROTARY_APIN, ROTARY_BPIN);
+RotaryEncoder scrollWheel(ROTARY_APIN, ROTARY_BPIN, RotaryEncoder::LatchMode::FOUR3);
 
 void setup() {
   buttonL.attach(LEFT_BUTTON, INPUT_PULLUP);
   buttonL.interval(BOUNCE_INTERVAL);
   buttonR.attach(RIGHT_BUTTON, INPUT_PULLUP);
   buttonR.interval(BOUNCE_INTERVAL);
-//  pinMode(LEFT_BUTTON, INPUT_PULLUP);
-//  pinMode(RIGHT_BUTTON, INPUT_PULLUP);
-  Serial.begin(9600);
+  Serial.begin(115200);
 }
 
 void loop() {
   buttonL.update();
   buttonR.update();
-  long scrollPosition = scrollWheel.read();
+  scrollWheel.tick();
+  long scrollPosition = scrollWheel.getPosition();
   if(scrollPosition != lastScrollPosition) {
-    Mouse.scroll(scrollPosition - lastScrollPosition);
+    int accelerator = scrollWheel.getRPM() > 3000 ? 10 : 2;
+    Mouse.scroll( (scrollPosition - lastScrollPosition) * accelerator);
     lastScrollPosition = scrollPosition;
   }
   if (buttonL.fallingEdge()) {
