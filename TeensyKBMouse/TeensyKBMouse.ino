@@ -26,8 +26,12 @@ void loop() {
   buttonL.update();
   buttonR.update();
   scrollWheel.tick();
+  
   long scrollPosition = scrollWheel.getPosition();
-  if(scrollPosition != lastScrollPosition) {
+  bool hasScrolled = scrollPosition != lastScrollPosition;
+  bool intentionalDirectionChange = (((int)scrollWheel.getDirection() != 0) && (scrollWheel.getMillisBetweenRotations() > 10));
+  bool handleMovementDirection = ( ((int)scrollWheel.getDirection() == 0) || intentionalDirectionChange );
+  if(hasScrolled && handleMovementDirection) {
     int accelerator = scrollWheel.getRPM() > 3000 ? 10 : 2;
     Mouse.scroll( (scrollPosition - lastScrollPosition) * accelerator);
     lastScrollPosition = scrollPosition;
