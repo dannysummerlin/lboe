@@ -7,6 +7,7 @@ Install-Module MSAL.PS
 if(!(Get-InstalledModule -Name MSAL.PS)) { Install-Module MSAL.PS -confirm:$false }
 if(!(Get-InstalledModule -Name ExchangeOnlineManagement)) { Install-Module ExchangeOnlineManagement -confirm:$false }
 if(!(Get-InstalledModule -Name PnP.PowerShell)) { Install-Module -Name PnP.PowerShell -confirm:$false -force }
+if(!(Get-InstalledModule -Name Microsoft.Graph)) { Install-Module -Name Microsoft.Graph -confirm:$false -force }
 
 Import-Module MSAL.PS
 
@@ -57,7 +58,7 @@ Function Get-M365Content {
 Function Get-M365UserActivity {
 	[cmdletbinding()]
 	param(
-		[Parameter(Mandatory = $false, ValueFromPipeline = $true)]][string]$days = "90",
+		[Parameter(Mandatory = $false, ValueFromPipeline = $true)][string]$days = "90",
 		[Parameter(Mandatory = $true)]$token
 	)
 	$url = "https://graph.microsoft.com/beta/reports/getM365AppUserDetail(period='D$($days)')/content?`$format=application/json&`$top=4000"
@@ -73,7 +74,7 @@ Function Get-M365UserActivity {
 Function Get-M365EstablishedUsers {
 	[cmdletbinding()] Param(
 		[Parameter(Mandatory = $true)]$token,
-		[Parameter(Mandatory = $false, ValueFromPipeline = $true)]][string]$days = "90",
+		[Parameter(Mandatory = $false, ValueFromPipeline = $true)][string]$days = "90",
 	)
 	$daysAgo = (Get-Date).AddDays(-1 * [int]($days))
 	$year = [String]$daysAgo.Year
