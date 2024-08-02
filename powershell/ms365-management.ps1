@@ -1,4 +1,9 @@
-# built from https://blog.darrenjrobinson.com/microsoft-graph-using-msal-with-powershell/
+<#
+built from https://blog.darrenjrobinson.com/microsoft-graph-using-msal-with-powershell/ + others
+required modules
+Install-Module PnP.PowerShell
+Install-Module MSAL.PS
+#>
 Import-Module MSAL.PS
 
 # ===================================================================================================
@@ -90,7 +95,77 @@ Function Connect-Tenant {
 	Connect-MsolService -Credential $UserCredential
 	Import-Module (Import-PSSession $Session -DisableNameChecking:$true -AllowClobber:$true) -Global
 }
+
+function Invoke-WithRetry {
+	[CmdletBinding()]
+	Param(
+		[Parameter(Position=0, Mandatory=$true)][scriptblock]$scriptBlock,
+		[Parameter(Position=1, Mandatory=$false)][int]$maxCount = 3,
+		[Parameter(Position=2, Mandatory=$false)][int]$delay = 10
+	)
+	Begin { $tryCounter = 0 }
+	Process {
+		do {
+			$tryCounter++
+			try {
+				Invoke-Command -Command $scriptBlock
+				return
+			} catch {
+				Write-Error $_.Exception.InnerException.Message -ErrorAction Continue
+				Start-Sleep -Milliseconds $delay
+			}
+		} while ($tryCounter -lt $maxCount)
+		throw "Exceeded retry count"
+	}
+}
 # ===================================================================================================
+
+Function Archvie-OneDrive {
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory = $true)][string]$username,
+		[Parameter(Mandatory = $true)][string]$password,
+		[Parameter(Mandatory = $true)][string]$subdomain,
+		[Parameter(Mandatory = $true)][string]$sourceUsername, # "demo.data@example.com"
+		[Parameter(Mandatory = $true)][string]$targetSite = "Backup",
+		[Parameter(Mandatory = $true)][string]$sourceLibraryName = "Documents",
+		[string]$targetLibraryName
+	)
+ 	Import
+	$urledSourceUsername = $sourceUsername -replace "@","_" -replace "\.(\w{2,3})$",'_$1'
+	if($targetLibraryName -eq '') { $targetLibraryName = $urledSourceUsername }
+
+	$sourceConnection = Connect-PnPOnline -Url "https://$($subdomain)-my.sharepoint.com/personal/$urledSourceUsername" -Interactive -ReturnConnection
+	$sourceLibrary = Get-PnPList -Identity "Documents" -Connection $sourceConnection
+	$targetConnection = Connect-PnPOnline -Url $targetSite -Interactive -ReturnConnection
+	$targetLibrary = Get-PnPList -Identity $targetLibraryName -Connection $targetConnection
+	$targetRootFolder = Get-PnPProperty -ClientObject $targetLibrary -Property RootFolder
+
+	(Get-PnPListItem -List $sourceLibrary -Connection $sourceConnection  | Where { $_.FileSystemObjectType -eq "Folder"}) | % {
+		$sourceFolderSiteRelativePath = $_.FieldValues.FileRef.Replace($sourceLibrary.RootFolder.ServerRelativeUrl, [string]::Empty)
+		$targetFolderSiteRelativePath = Join-Path $targetRootFolder.Name $sourceFolderSiteRelativePath
+		Write-Debug "Ensuring Folder at $targetFolderSiteRelativePath" -ForegroundColor Green
+		Resolve-PnPFolder -SiteRelativePath $targetFolderSiteRelativePath | Out-Null
+	}
+
+	$sourceFiles = Get-PnPListItem -List $sourceLibrary -Connection $sourceConnection | Where { $_.FileSystemObjectType -eq "File"}
+	$totalCounter = 1
+	$totalFiles = $sourceFiles.Count
+	ForEach ($File in $sourceFiles) {
+		Write-Progress -PercentComplete ($totalCounter/$totalFiles*100) -Activity "Copying Files" -Status "Copying File $($file.FieldValues.FileRef) ($totalCounter of $totalFiles)..."
+		$localFileCopy = Get-PnPFile -Url $file.FieldValues.FileRef -Connection $sourceConnection -AsFile -Path $Env:TEMP -Filename $File.FieldValues.FileLeafRef -Force
+		$localFilePath = Join-Path $Env:TEMP $File.FieldValues.FileLeafRef
+		$sourceFileSiteRelativePath = $File.FieldValues.FileDirRef.Replace($sourceLibrary.RootFolder.ServerRelativeUrl, [string]::Empty)
+		$targetFolderSiteRelativePath = Join-Path $targetRootFolder.Name $sourceFileSiteRelativePath
+		Invoke-WithRetry -scriptBlock {
+			Add-PnPFile -Path $localFilePath -Folder $targetFolderSiteRelativePath -Connection $targetConnection -Values @{Modified=$File.FieldValues.Modified; Created = $File.FieldValues.Created} | Out-null
+			$totalCounter++
+			Remove-Item $localFilePath
+			Write-Debug "Copied File from $($File.FieldValues.FileRef)" -f Green
+		}
+	}
+}
+
 
 # Example use:
 # Update-Licenses -tenantID "xxxx-xxxx-xxxx-xxxx" -credential ([pscredential]::New($ApplicationId, ($SecretKey | ConvertTo-SecureString -AsPlainText -Force)))
@@ -158,8 +233,10 @@ Function ConvertTo-SharedMailbox {
 	)
 
 	Import-Module ExchangeOnlineManagement
-	Connect-ExchangeOnline -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,(ConvertTo-SecureString -String $password -AsPlainText -Force))
-	Write-Output (Set-Mailbox -Identity $emailAddress -Type Shared)
+	Invoke-WithRetry -scriptBlock {
+		Connect-ExchangeOnline -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,(ConvertTo-SecureString -String $password -AsPlainText -Force))
+		Write-Output (Set-Mailbox -Identity $emailAddress -Type Shared)
+	}
 }
 
 # Used with New-AdUser or Get-AdUser cmdlets
@@ -173,6 +250,8 @@ Function Link-MailboxToADUser {
 	)
 
 	Import-Module ExchangeOnlineManagement
-	Connect-ExchangeOnline -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,(ConvertTo-SecureString -String $password -AsPlainText -Force))
-	Set-MsolUserPrincipalName $sharedInboxAddress -ImmutableId ([System.Convert]::ToBase64String($adUser.objectGuid.ToByteArray()))
+	Invoke-WithRetry {
+		Connect-ExchangeOnline -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,(ConvertTo-SecureString -String $password -AsPlainText -Force))
+		Set-MsolUserPrincipalName $sharedInboxAddress -ImmutableId ([System.Convert]::ToBase64String($adUser.objectGuid.ToByteArray()))
+	}
 }
