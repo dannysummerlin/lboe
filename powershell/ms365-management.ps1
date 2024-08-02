@@ -4,6 +4,10 @@ required modules
 Install-Module PnP.PowerShell
 Install-Module MSAL.PS
 #>
+if(!(Get-InstalledModule -Name MSAL.PS)) { Install-Module MSAL.PS -confirm:$false }
+if(!(Get-InstalledModule -Name ExchangeOnlineManagement)) { Install-Module ExchangeOnlineManagement -confirm:$false }
+if(!(Get-InstalledModule -Name PnP.PowerShell)) { Install-Module -Name PnP.PowerShell -confirm:$false -force }
+
 Import-Module MSAL.PS
 
 # ===================================================================================================
@@ -255,3 +259,26 @@ Function Link-MailboxToADUser {
 		Set-MsolUserPrincipalName $sharedInboxAddress -ImmutableId ([System.Convert]::ToBase64String($adUser.objectGuid.ToByteArray()))
 	}
 }
+<#
+# Notes for later - Azure App assignment manager
+for($role in $roleNames) {
+	$appRole = $ServicePrincipal.AppRoles | Where-Object { $_.DisplayName -eq $role }
+	$appAssignments = Get-AzureADServiceAppRoleAssignment -ObjectId $ServicePrincipal.ObjectId
+	$groupName = $role.Replace(" ","")
+	$members = Get-ADGroupMember $groupName -Recursive
+	for($member in $members) {
+		$adUser = Get-ADUser $member
+		$user = Get-AzureADUser -ObjectId $adUser.userPrincipalName
+		$assignment = $appAssignments | Where {$_.PrincipalDisplayName -eq $user.DisplayName}
+		if(!$assignment) {
+			New-AzureADUserAppRoleAssignment -ObjectId $user.ObjectId -PrincipalId $user.ObjectId -ResourceId $ServicePrincipal.ObjectId -Id $appRole.Id
+		} else {
+			$appAssignments = $appAssignments | Where-Object { $_.ObjectId –ne $assignment.ObjectId }
+		}
+	}
+}
+
+for($a in $appAssignments) {
+	Remove-AzureADServiceAppRoleAssignment -ObjectId $ServicePrincipal.ObjectId -AppRoleAssignmentId $a.ObjectId
+}
+#>
