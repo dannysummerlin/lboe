@@ -125,7 +125,8 @@ function Invoke-WithRetry {
 }
 # ===================================================================================================
 
-Function Archvie-OneDrive {
+# OG function, decomposing
+Function MigrateFiles-OneDriveSharePoint {
 	[CmdletBinding()]
 	param(
 		[Parameter(Mandatory = $true)][string]$username,
@@ -136,7 +137,6 @@ Function Archvie-OneDrive {
 		[Parameter(Mandatory = $true)][string]$sourceLibraryName = "Documents",
 		[string]$targetLibraryName
 	)
- 	Import
 	$urledSourceUsername = $sourceUsername -replace "@","_" -replace "\.(\w{2,3})$",'_$1'
 	if($targetLibraryName -eq '') { $targetLibraryName = $urledSourceUsername }
 
@@ -171,6 +171,73 @@ Function Archvie-OneDrive {
 	}
 }
 
+Function MigrateFilesFrom-OneDrive {
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory = $true)][string]$username,
+		[Parameter(Mandatory = $true)][string]$password,
+		[Parameter(Mandatory = $true)][string]$subdomain,
+		[Parameter(Mandatory = $true)][string]$sourceUsername, # "demo.data@example.com"
+		[Parameter(Mandatory = $true)][string]$targetFolder = "Backup"
+	)
+	$urledSourceUsername = $sourceUsername -replace "@","_" -replace "\.(\w{2,3})$",'_$1'
+	$sourceConnection = Connect-PnPOnline -Url "https://$($subdomain)-my.sharepoint.com/personal/$urledSourceUsername" -Interactive -ReturnConnection
+	$sourceLibrary = Get-PnPList -Identity "Documents" -Connection $sourceConnection
+	(Get-PnPListItem -List $sourceLibrary -Connection $sourceConnection  | Where { $_.FileSystemObjectType -eq "Folder"}) | % {
+		$sourceFolderSiteRelativePath = $_.FieldValues.FileRef.Replace($sourceLibrary.RootFolder.ServerRelativeUrl, [string]::Empty)
+		$targetFolderSiteRelativePath = Join-Path $targeFolder $sourceFolderSiteRelativePath
+		Write-Debug "Ensuring Folder at $targetFolderSiteRelativePath" -ForegroundColor Green
+		Create-Directory $targetFolderSiteRelativePath | Out-Null
+	}
+
+	$sourceFiles = Get-PnPListItem -List $sourceLibrary -Connection $sourceConnection | Where { $_.FileSystemObjectType -eq "File"}
+	$totalCounter = 1
+	$totalFiles = $sourceFiles.Count
+	ForEach ($File in $sourceFiles) {
+		Write-Progress -PercentComplete ($totalCounter/$totalFiles*100) -Activity "Copying Files" -Status "Copying File $($file.FieldValues.FileRef) ($totalCounter of $totalFiles)..."
+		$sourceFileSiteRelativePath = $File.FieldValues.FileDirRef.Replace($sourceLibrary.RootFolder.ServerRelativeUrl, [string]::Empty)
+		$targetFolderSiteRelativePath = Join-Path $targetFolder $sourceFileSiteRelativePath
+		$localFileCopy = Get-PnPFile -Url $file.FieldValues.FileRef -Connection $sourceConnection -AsFile -Path $targetFolderSiteRelativePath -Filename $File.FieldValues.FileLeafRef -Force
+	}
+}
+
+Function MigrateFilesTo-Sharepoint {
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory = $true)][string]$username,
+		[Parameter(Mandatory = $true)][string]$password,
+		[Parameter(Mandatory = $true)][string]$subdomain,
+		[Parameter(Mandatory = $true)][string]$sourceFolder,
+		[Parameter(Mandatory = $true)][string]$targetSite = "Backup",
+		[Parameter(Mandatory = $true)][string]$sourceLibraryName = "Documents",
+		[Parameter(Mandatory = $true)][string]$targetLibraryName
+	)
+
+	$targetConnection = Connect-PnPOnline -Url $targetSite -Interactive -ReturnConnection
+	$targetLibrary = Get-PnPList -Identity $targetLibraryName -Connection $targetConnection
+	$targetRootFolder = Get-PnPProperty -ClientObject $targetLibrary -Property RootFolder
+ 	$sourceData = Get-ChildItems $sourceFolder -Recursive
+	($sourceData | Where { $_.FileSystemObjectType -eq "Folder"}) | % {
+		$sourceFolderSiteRelativePath = $_.FieldValues.FileRef.Replace($sourceLibrary.RootFolder.ServerRelativeUrl, [string]::Empty)
+		$targetFolderSiteRelativePath = Join-Path $targetRootFolder.Name $sourceFolderSiteRelativePath
+		Write-Debug "Ensuring Folder at $targetFolderSiteRelativePath" -ForegroundColor Green
+		Resolve-PnPFolder -SiteRelativePath $targetFolderSiteRelativePath | Out-Null
+	}
+	$sourceFiles = $sourceData | Where { $_.FileSystemObjectType -eq "File"}
+	$totalCounter = 1
+	$totalFiles = $sourceFiles.Count
+	ForEach ($File in $sourceFiles) {
+		Write-Progress -PercentComplete ($totalCounter/$totalFiles*100) -Activity "Copying Files" -Status "Copying File $($file.FieldValues.FileRef) ($totalCounter of $totalFiles)..."
+		$sourceFileSiteRelativePath = $File.RelativePath
+		$targetFolderSiteRelativePath = Join-Path $targetRootFolder.Name $sourceFileSiteRelativePath
+		Invoke-WithRetry -scriptBlock {
+			Add-PnPFile -Path $File.Path -Folder $targetFolderSiteRelativePath -Connection $targetConnection -Values @{Modified=$File.FieldValues.Modified; Created = $File.FieldValues.Created} | Out-null
+			$totalCounter++
+			Remove-Item $localFilePath
+			Write-Debug "Copied File from $($File.FieldValues.FileRef)" -f Green
+		}
+	}
+}
 
 # Example use:
 # Update-Licenses -tenantID "xxxx-xxxx-xxxx-xxxx" -credential ([pscredential]::New($ApplicationId, ($SecretKey | ConvertTo-SecureString -AsPlainText -Force)))
