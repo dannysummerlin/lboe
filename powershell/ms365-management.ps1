@@ -1,15 +1,15 @@
 <#
 built from https://blog.darrenjrobinson.com/microsoft-graph-using-msal-with-powershell/ + others
 required modules
-Install-Module PnP.PowerShell
-Install-Module MSAL.PS
 #>
-if(!(Get-InstalledModule -Name MSAL.PS)) { Install-Module MSAL.PS -confirm:$false }
-if(!(Get-InstalledModule -Name ExchangeOnlineManagement)) { Install-Module ExchangeOnlineManagement -confirm:$false }
-if(!(Get-InstalledModule -Name PnP.PowerShell)) { Install-Module -Name PnP.PowerShell -confirm:$false -force }
-if(!(Get-InstalledModule -Name Microsoft.Graph)) { Install-Module -Name Microsoft.Graph -confirm:$false -force }
-
+try { Get-InstalledModule -Name MSAL.PS } catch { Install-Module MSAL.PS -confirm:$false }
+try { Get-InstalledModule -Name ExchangeOnlineManagement } catch { Install-Module ExchangeOnlineManagement -confirm:$false }
+try { Get-InstalledModule -Name PnP.PowerShell } catch { Install-Module -Name PnP.PowerShell -confirm:$false -force }
+try { Get-InstalledModule -Name Microsoft.Graph } catch { Install-Module -Name Microsoft.Graph -confirm:$false -force }
+Import-Module ExchangeOnlineManagement
 Import-Module MSAL.PS
+Connect-ExchangeOnline # -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,$password)
+Connect-MgGraph # -Credential (New-Object -typename System.Management.Automation.PSCredential -argumentlist $username,$password)
 
 # ===================================================================================================
 # Library Functions
