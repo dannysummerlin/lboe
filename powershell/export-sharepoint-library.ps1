@@ -1,13 +1,10 @@
 #Parameters
-$username = $ENV:username
-$password = $ENV:pass
 $siteURL = $ENV:siteURL
 $ListName= "Documents"
 $Pagesize = 5000
 
 #Connect to SharePoint Online site
-$cred = [pscredential]$credObject = New-Object System.Management.Automation.PSCredential ($username, (ConvertTo-SecureString $password -AsPlainText -Force))
-Connect-PnPOnline $SiteURL -Credentials $cred
+Connect-PnPOnline $SiteURL -Interactive
 $global:totalCounter = 0
 $global:fileCounter = 0
 
