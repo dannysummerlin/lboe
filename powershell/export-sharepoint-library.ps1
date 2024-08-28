@@ -1,7 +1,7 @@
 #Parameters
-$username = "admin@elofmass.onmicrosoft.com"
-$password = $ENV:elmpass
-$SiteURL = "https://elofmass.sharepoint.com/"
+$username = $ENV:username
+$password = $ENV:pass
+$siteURL = $ENV:siteURL
 $ListName= "Documents"
 $Pagesize = 5000
 
