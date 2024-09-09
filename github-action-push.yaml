@@ -1,0 +1,20 @@
+name: Push Release to Host server
+on:
+  release:
+    types: [published]
+jobs:
+  build:
+    name: Git Pull Remotely
+    runs-on: ubuntu-latest
+    steps:
+    - name: Connect with SSH and run Git
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.KEY }}
+        port: ${{ secrets.PORT }}
+        passphrase: ${{ secrets.PASSPHRASE }}
+        script: |
+          cd ${{ secrets.APP_DIRECTORY }}
+          git pull
