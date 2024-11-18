@@ -1,4 +1,3 @@
-# todo - handle more step types
 $types = @(
     @{ name = "actionCalls"; open = "[/"; close = "/]"; color = ""; },
     @{ name = "decisions"; open = "{{"; close = "}}"; color = ""; },
@@ -14,7 +13,7 @@ ForEach($f in $(gci *.flow)) {
     $flow = $conent
     $o = ForEach ($t in $types) {
         ForEach($s in $content.$($t.name)) {
-            echo ($s.name + $t.open + $s.label + $t.close + "`n")
+            echo ($s.name + $t.open + '"`' + $s.label + '`"' + $t.close + "`n")
             "$($s.name) --> $($s.connector.targetReference ?? $s.defaultConnector.targetReference ?? $s.nextValueConnector.targetReference)`n"
             $s.noMoreValuesConnector ? (echo "$($s.name) --> $($s.noMoreValuesConnector.targetReference)`n") : $null
             $s.rules | % { $_ ? (echo "$($s.name) --> $($_.connector.targetReference)`n") : $null }
