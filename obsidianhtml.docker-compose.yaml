@@ -1,0 +1,60 @@
+services:
+  proxy:
+    container_name: proxy
+    image: nginxproxy/nginx-proxy:1.4-alpine
+    environment:
+      - DEFAULT_HOST=DOCS.EXAMPLE.COM
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./proxy/htpasswd:/etc/nginx/htpasswd
+      - ./certs:/etc/nginx/certs:ro
+      - ./proxy/html:/usr/share/nginx/html
+      - ./proxy/vhost.d:/etc/nginx/vhost.d
+      - ./proxy/conf.d:/etc/nginx/conf.d
+    restart: unless-stopped
+  acme:
+    container_name: acme
+    image: nginxproxy/acme-companion
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/nginx/certs
+      - ./proxy/html:/usr/share/nginx/html
+      - ./proxy/vhost.d:/etc/nginx/vhost.d
+      - type: bind
+        source: ./proxy/acme.sh
+        target: /etc/acme.sh
+    environment:
+      NGINX_PROXY_CONTAINER: proxy
+      DEFAULT_EMAIL: EXAMPLE@EXAMPLE.COM
+      ACME_CHALLENGE: DNS-01
+      ACMESH_DNS_API_CONFIG: "{'DNS_API': 'dns_aws','AWS_ACCESS_KEY_ID': '${AWS_ACCESS_KEY}','AWS_SECRET_ACCESS_KEY': '${AWS_SECRET_KEY}','AWS_REGION': 'us-east-1','AWS_HOSTED_ZONE_ID': '${AWS_HOSTED_ZONE_ID}'}"
+    restart: unless-stopped
+  obsidianhtml:
+    container_name: obsidianhtml 
+    image: python:3.12
+    environment:
+      VIRTUAL_HOST: DOCS.EXAMPLE.COM
+      VIRTUAL_PORT: 8080
+      GIT_TOKEN: ${GIT_TOKEN}
+      GIT_REPO_OWNER: source
+      GIT_REPO_NAME: repo
+      GIT_BRANCH: main
+    volumes:
+      - "/var/local/docker/obsidianhtml:/usr/src/app"
+    restart: unless-stopped
+    command: >
+	    yes | apt-get update
+  		yes | apt-get install python3-twisted
+  		pip install obsidianhtml
+  		sed -i "s/mermaid@10/mermaid@11/g" > /usr/local/lib/python3.12/site-packages/obsidianhtml/src/mermaid/init_mermaid.html
+  		sh -c 'if [ ! -d "/usr/src/app/$GIT_REPO_NAME" ]; then cd /usr/src/app; git clone https://$GIT_USERNAME:"$GIT_TOKEN"@github.com/$GIT_REPO_OWNER/$GIT_REPO_NAME.git; fi'
+  		cd /usr/src/app/$GIT_REPO_NAME
+  		git switch $GIT_BRANCH
+  		git reset --hard HEAD
+  		git pull
+  		cd ..
+  		obsidianhtml convert -i config.yaml
+  		twistd3 -no web --path=/usr/src/app/output/html
