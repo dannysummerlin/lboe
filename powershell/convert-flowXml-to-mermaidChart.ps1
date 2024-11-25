@@ -3,6 +3,7 @@ $types = @(
     @{ name = "subflows"; open = "{{"; close = "}}"; style = "fill:#d3c0f9"; },
     @{ name = "decisions"; open = "{"; close = "}"; style = "fill:#ebd2b4"; },
     @{ name = "assignments"; open = ">"; close = "]"; style = "fill:#d6f6dd"; },
+    @{ name = "collectionProcessors"; open = "[["; close = "]]"; style = "fill:#d6f6dd"; },
     @{ name = "recordLookups"; open = "[/"; close = "\]"; style = "fill:#acecf7"; },
     @{ name = "recordUpdates"; open = "[\"; close = "/]"; style = "fill:#acecf7"; },
     @{ name = "recordCreates"; open = "[/"; close = "/]"; style = "fill:#acecf7"; },
@@ -23,6 +24,7 @@ ForEach($f in $(gci *.flow)) {
     $o = ForEach ($t in $types) {
         ForEach($s in $content.$($t.name)) {
             echo ($s.name + $t.open + '"`' + $s.label + '`"' + $t.close + ":::$($t.name)`n")
+            # maybe allow different line styles to show default options, for instance
             $defaultConnector = $s.connector.targetReference ?? $s.defaultConnector.targetReference ?? $s.nextValueConnector.targetReference
             $defaultConnector ? (echo "$($s.name) ---> $defaultConnector`n") : $null
             $s.noMoreValuesConnector ? (echo "$($s.name) ---> $($s.noMoreValuesConnector.targetReference)`n") : $null
