@@ -10,10 +10,13 @@
 # Text Domain: summerlinco
 
 // plugin settings variables
-$baseDomain = 'jstart.org';
-$tenantId = '2dc2ad66-d6ad-463f-b14d-42e33224ba5a';
-$hookLogin = 'wpo365/user/user_login';
+$baseDomain = 'example.com';
+$tenantId = 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
+// need to determine which hook is best, or else do it on per plugin basis
+$hookLogin = 'wpo365/saml/authenticated ';
 // $hookLogin = 'wp_saml_auth_pre_authentication';
+$hookLoginNew = FALSE;
+$credentials = parse_ini_file('/some/protected/dir/creds.ini', true);
 
 function curl_call($url, $method = 'post', $data = NULL, array $options = array()) {
 	$defaults = array(
@@ -40,10 +43,11 @@ function curl_post($url, $post = NULL, array $options = array()) { return curl_c
 function curl_get($url, array $get = NULL, array $options = array()) { return curl_call($url, 'get', $get, $options); }
 
 function getAzureGroups($groupLink, $tenantId) {
+	global $credentials;
+	global $tenantId;
 	// Get Azure Token for MS Graph
 		$azureToken = get_transient('azureToken');
 		if (false == $azureToken) {
-			$credentials = parse_ini_file('creds.ini', true);
 			$tokenString = curl_post('https://login.microsoftonline.com/'.$tenantId.'/oauth2/v2.0/token', http_build_query(array(
 				'client_id' => $credentials['MS_Graph']['client_id'],
 				'client_secret' => $credentials['MS_Graph']['client_secret'],
@@ -149,12 +153,13 @@ function updateSSOUser($user, $attributes) {
 	}
 	wp_update_user( $user_args );
 }
-add_action( 'wp_saml_auth_new_user_authenticated', 'updateSSOUser', 10, 2);
-add_action( 'wp_saml_auth_existing_user_authenticated', 'updateSSOUser', 10, 2 );
-
-// need to determine which hook is best, or else do it on per plugin basis
+add_action( $hookLogin, 'updateSSOUser', 10, 2);
+if($hookLoginNew) {
+	add_action($hookLoginNew, 'updateSSOUser', 10, 2 );
+}
+// * Reject authentication if $attributes doesn't include the authorized group.
 add_filter($hookLogin, function( $ret, $attributes ) {
-	// * Reject authentication if $attributes doesn't include the authorized group.
+	global $baseDomain;
 	$username = $attributes['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'][0];
 	if ( !stristr($username, $baseDomain) ) {
 		return new WP_Error( 'unauthorized-domain', "Please make sure to login with your $baseDomain account. (currently using $username)" );
