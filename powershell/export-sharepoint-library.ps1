@@ -1,10 +1,19 @@
-#Parameters
-$siteURL = $ENV:siteURL
+# Parameters required in .env file
+# =======================================
+# ClientID=xxxxx-xxxxx-xxxx-xxx-xxxxxxxxxx
+# Tenant=xxxxx-xxxxx-xxxx-xxx-xxxxxxxxxx
+# ThumbPrint=xxxxxxxxxxxxxxxxxxxxxxx
+# SiteURL=https://xxxxxxx.sharepoint.com/
+
+Get-Content .env | foreach {
+    $name, $value = $_.split('=')
+    Set-Content env:\$name $value
+}
 $ListName= "Documents"
 $Pagesize = 5000
 
 #Connect to SharePoint Online site
-Connect-PnPOnline $SiteURL -Interactive
+Connect-PnPOnline -Url $ENV:SiteURL -ClientId $ENV:ClientID -Thumbprint $ENV:ThumbPrint -Tenant $ENV:Tenant
 $global:totalCounter = 0
 $global:fileCounter = 0
 
@@ -37,7 +46,7 @@ Get-PnPListItem -List $ListName -PageSize $Pagesize -Fields Author, Editor, Crea
         }
         #Export the results to CSV
         $global:fileCounter++ > $null
-        $Results | Export-Csv -Path "List From $($global:fileCounter).csv" -NoTypeInformation
+        $Results | Export-Csv -Path "2 List From $($global:fileCounter).csv" -NoTypeInformation
         # may need to rate limit
         Start-Sleep -Seconds 2
 } > $null
