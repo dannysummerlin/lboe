@@ -104,15 +104,19 @@ End Function
 
 Function DateYWkWd(year, wNumber, wDay)
     Jan4 = DateSerial(year, 1, 4)
-    DateYWkWd = DateAdd("ww", wNumber - 1, DateAdd("d", wDay - weekDay(Jan4, 2) - 1, Jan4))
+    DateYWkWd = DateAdd("ww", wNumber - 1, DateAdd("d", wDay - Weekday(Jan4, 2) - 1, Jan4))
 End Function
 
 Public Sub TimeSpentReport()
     Dim Result
-    Result = runTimeSpentReport()
+    Result = runTimeSpentReport(False)
+End Sub
+Public Sub TimeSpentReportMonth()
+    Dim Result
+    Result = runTimeSpentReport(True)
 End Sub
 
-Function runTimeSpentReport()
+Function runTimeSpentReport(monthMode As Boolean)
     Dim objOL As Outlook.Application
     Dim oNS As Outlook.NameSpace
     Dim objSelection As Outlook.Selection
@@ -145,7 +149,7 @@ Function runTimeSpentReport()
 
     For Each objItem In objSelection
         If objItem.Class = olAppointment Then
-            If WeekStart = "" Then WeekStart = DateYWkWd(DatePart("yyyy", objItem.Start), DatePart("ww", objItem.Start, vbMonday, vbFirstFourDays), 1)
+            If WeekStart = "" Then WeekStart = DateYWkWd(DatePart("yyyy", objItem.Start), DatePart("ww", objItem.Start, vbMonday), 1)
             ListComparison = Filter(ListOfCategories, objItem.Categories)
             If UBound(ListComparison) = -1 Then ListOfCategories = AddItem(ListOfCategories, objItem.Categories)
         Else
@@ -159,7 +163,13 @@ Function runTimeSpentReport()
     Set calendarItems = olNS.GetDefaultFolder(olFolderCalendar).Items
     calendarItems.Sort "[Start]"
     calendarItems.IncludeRecurrences = True
-    Set objItem = calendarItems.Find("[Start] > '" & WeekStart & "' and [Start] < '" & DateAdd("d", 7, WeekStart) & "' and [End] < '" & DateAdd("d", 7, WeekStart) & "'")
+    If monthMode Then
+        monthStartDate = DateSerial(year(WeekStart), Month(WeekStart), 1)
+        monthEndDate = DateAdd("m", 1, DateSerial(year(WeekStart), Month(WeekStart), 1))
+        Set objItem = calendarItems.Find("[Start] > '" & monthStartDate & "' and [Start] < '" & monthEndDate & "' and [End] < '" & monthEndDate & "'")
+    Else
+        Set objItem = calendarItems.Find("[Start] > '" & WeekStart & "' and [Start] < '" & DateAdd("d", 7, WeekStart) & "' and [End] < '" & DateAdd("d", 7, WeekStart) & "'")
+    End If
     
     While TypeName(objItem) <> "Nothing" And SanityCount < 100
         SanityCount = SanityCount + 1
@@ -196,48 +206,3 @@ Function runTimeSpentReport()
     Set objSelection = Nothing
     Set objOL = Nothing
 End Function
-
-Public Sub SelectByCategory()
-    Dim objOL As Outlook.Application
-    Dim oNS As Outlook.NameSpace
-    Dim objSelection As Outlook.Selection
-    Dim calendarItems As Outlook.Items
-    Dim filteredItems As Outlook.Items
-    Dim objItem As Object
-    Dim ListOfCategories()
-    Dim Result
-
-    ListOfCategories = Array()
-    
-    On Error Resume Next
-
-    Set objOL = Outlook.Application
-    Set objSelection = objOL.ActiveExplorer.Selection
-
-    For Each objItem In objSelection
-        If objItem.Class = olAppointment Then
-            If WeekStart = "" Then WeekStart = DateYWkWd(DatePart("yyyy", objItem.Start), DatePart("ww", objItem.Start, vbMonday, vbFirstFourDays), 1)
-            ListComparison = Filter(ListOfCategories, objItem.Categories)
-            If UBound(ListComparison) = -1 Then ListOfCategories = AddItem(ListOfCategories, objItem.Categories)
-        Else
-            Result = MsgBox("No Calendar selected.", vbCritical, "Item Selector")
-            Exit Sub
-        End If
-    Next
-
-    Set olNS = objOL.GetNamespace("MAPI")
-    Set calendarItems = olNS.GetDefaultFolder(olFolderCalendar).Items
-    calendarItems.Sort "[Start]"
-    calendarItems.IncludeRecurrences = True
-    Set filteredItems = calendarItems.Restrict("[Start] > '" & WeekStart & "' and [Start] < '" & DateAdd("d", 7, WeekStart) & "' and [End] < '" & DateAdd("d", 7, WeekStart) & "'")
-
-    For Each objItem In filteredItems
-        If objItem.Class = olAppointment And objItem.BusyStatus <> olOutOfOffice Then
-            If objItem.Categories <> "" And UBound(Filter(ListOfCategories, objItem.Categories)) > -1 Then
-                objOL.ActiveExplorer.AddToSelection objItem
-            End If
-        End If
-    Next
-ExitSub:
-    Set objItem = Nothing
-End Sub
