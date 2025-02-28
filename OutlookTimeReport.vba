@@ -109,14 +109,19 @@ End Function
 
 Public Sub TimeSpentReport()
     Dim Result
-    Result = runTimeSpentReport(False)
+    Result = runTimeSpentReport(False, False)
 End Sub
 Public Sub TimeSpentReportMonth()
     Dim Result
-    Result = runTimeSpentReport(True)
+    Result = runTimeSpentReport(True, False)
+End Sub
+Public Sub TimeSpentReportWeek()
+    Dim Result
+    Result = runTimeSpentReport(False, True)
 End Sub
 
-Function runTimeSpentReport(monthMode As Boolean)
+
+Function runTimeSpentReport(monthMode As Boolean, allItems As Boolean)
     Dim objOL As Outlook.Application
     Dim oNS As Outlook.NameSpace
     Dim objSelection As Outlook.Selection
@@ -174,7 +179,7 @@ Function runTimeSpentReport(monthMode As Boolean)
     While TypeName(objItem) <> "Nothing" And SanityCount < 100
         SanityCount = SanityCount + 1
         If objItem.Class = olAppointment And objItem.BusyStatus <> olOutOfOffice Then
-            If objItem.Categories <> "" And UBound(Filter(ListOfCategories, objItem.Categories)) > -1 Then
+            If allItems Or (objItem.Categories <> "" And UBound(Filter(ListOfCategories, objItem.Categories)) > -1) Then
                 Duration = Duration + objItem.Duration
                 If ShowMileage Then Mileage = Mileage + objItem.Mileage
             End If
