@@ -1,60 +1,72 @@
-' based on Cindy Meister's work at https://stackoverflow.com/questions/50122503/replace-text-with-matching-mail-merge-field
-Sub find_replace_text_to_merge_field()
-    Dim merge_field_name As String
+Sub ReplaceTextWithMergeField()
+    On Error GoTo ErrHandler
+
+    Dim Document As Document
+    Set Document = ActiveDocument
     Dim search_string As String
-    Dim mm As Publisher.MailMergeDataField
-    Dim field_list As String
-    Dim counter As Long
-
-    If ActiveDocument.MailMerge.Type <> pbMergeDefault Then
-        search_string = InputBox("Enter the text to find", "Find and Replace Text to Merge Field")
-        For Each mm In ActiveDocument.MailMerge.DataSource.DataFields
-            field_list = field_list & vbNewLine & mm.Name
-        Next
-        merge_field_name = InputBox("Enter the merge field name to use. Field names are:" & field_list, "Enter Merge Field Name")
-        If Not merge_field_name Is Nothing Then
-            Dim found As Boolean
-            Do While replace_text_with_merge_field(search_string, merge_field_name)
-                counter = counter + 1
-            Loop
-            Debug.Print counter & " merge fields inserted for " & merge_field_name
-        Else
-            MsgBox ("You must enter a merge field name to proceed")
-        End If
-    Else
-        MsgBox ("You can only run this command on documents that are mail-merge enabled")
+    search_string = InputBox("Enter the text you want to replace:")
+    If search_string = "" Then
+        MsgBox "No text entered. Exiting."
+        Exit Sub
     End If
-End Sub
+    ' Collect all available merge fields
+    Dim data_source As MailMergeDataSource
+    Set data_source = Document.MailMerge.dataSource
+    If data_source Is Nothing Then
+        MsgBox "No mail merge data source found. Please connect a data source first.", vbCritical
+        Exit Sub
+    End If
+    Dim field_names As String
+    Dim i As Integer
+    For i = 1 To data_source.DataFields.Count
+        field_names = field_names & data_source.DataFields.Item(i).Name & vbCrLf
+    Next i
+    Dim field_name As String
+    field_name = InputBox("Available merge fields:" & vbCrLf & field_names & vbCrLf & _
+                         "Enter the name of the field to insert:")
+    If field_name = "" Then
+        MsgBox "No field name entered. Exiting."
+        Exit Sub
+    End If
+    ' Check if entered field exists
+    Dim fieldExists As Boolean
+    fieldExists = False
+    For i = 1 To data_source.DataFields.Count
+        If StrComp(data_source.DataFields.Item(i).Name, field_name, vbTextCompare) = 0 Then
+            fieldExists = True
+            Exit For
+        End If
+    Next i
+    If Not fieldExists Then
+        MsgBox "Field name '" & field_name & "' not found in merge fields.", vbExclamation
+        Exit Sub
+    End If
 
-Function replace_text_with_merge_field(search_string As String, merge_field_name As String) As Boolean
-    Dim found as Boolean
-    Dim finder As FindReplace
-    Set finder = ActiveDocument.Find
-    Set found = True
-    With finder
-        .ClearFormatting
-        .Forward = True
-        .wrap = wdFindStop
-        .Format = False
-        .MatchCase = False
-        .MatchWholeWord = True ' maybe false?
-        .MatchWildcards = False
-        .MatchSoundsLike = False
-        .MatchAllWordForms = False
-        .ReplaceWithText = ""
-        .ReplaceScope = pbReplaceScopeOne
-        .FindText = search_string
-        Do While found = True
-            found = .Execute
-            If Not .FoundTextRange Is Nothing Then
-                .FoundTextRange.Font.Bold = True
+    Dim page As page
+    Dim shape As shape
+    Dim text_range As TextRange
+    Dim start_position As Integer
+    For Each page In Document.Pages
+        ActiveDocument.ActiveView.ActivePage = page
+        For Each shape In page.Shapes
+            If shape.HasTextFrame Then
+                Set text_range = shape.TextFrame.TextRange
+                Do
+                    start_position = InStr(1, text_range.Text, search_string, vbTextCompare)
+                    If start_position > 0 Then
+                        text_range.Characters(start_position).Select
+                        text_range.Characters(start_position, Len(search_string)).Delete
+                        text_range.Characters(start_position).InsertMailMergeField (field_name)
+                    End If
+                Loop While start_position > 0
             End If
-        Loop
-    End With
-     '     Do While .Execute = True
-    '         .FoundTextRange.Fields.Add(range, wdFieldMergeField, merge_field_name, False)
-    '         found = True
-    '     Loop
-    ' End With
-    return found
-End Function
+        Next shape
+    Next page
+    MsgBox "Replacement complete!", vbInformation
+    Exit Sub
+
+ErrHandler:
+    Debug.Print Err.Description
+    Stop
+    Resume
+End Sub
