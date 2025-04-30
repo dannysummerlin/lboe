@@ -11,6 +11,10 @@ $TokenSet = [Char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
 $enabled = $emails | ? { (Get-AzureADUser -ObjectId $_).AccountEnabled -eq $True }
 $disabled = $emails | ? { (Get-AzureADUser -objectid $_).AccountEnabled -eq $False }
 
+$disabled_guids = $disabled | % { (Get-AzureADUser -ObjectId $_).ObjectId }
 $disabled | % { Set-AzureADUser -ObjectId $_ -ImmutableId (
 	[Convert]::ToBase64String((Get-Random -Count 36 -InputObject $TokenSet))
 ) }
+
+# after AD sync
+$disabled_guids | % { Restore-AzureADMSDeletedDirectoryObject -Id $_ }
