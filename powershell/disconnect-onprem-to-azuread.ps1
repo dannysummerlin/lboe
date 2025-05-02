@@ -1,28 +1,27 @@
-Install-Module AzureAD
-Import-Module AzureAD
-Connect-AzureAD
+Import-Module MSOnline
+Connect-MSOLService
 
 $emails = @(
 "test@contoso.com",
 "email@contoso.com"
 )
-$TokenSet = [Char[]]'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 $syncExcludedLocation = "OU=Excluded from Sync,DC=contoso,dc=com" # an OU or container in AD to move accounts to
 
-$enabled = $emails | ? { (Get-AzureADUser -ObjectId $_).AccountEnabled -eq $True }
-$disabled = $emails | ? { (Get-AzureADUser -objectid $_).AccountEnabled -eq $False }
+$all_users=(Get-MSOLuser -All:$true -EnabledFilter EnabledOnly)
+$all_emails = New-Object System.Collections.ArrayList
+$all_users | % { [void]$all_emails.Add($_.UserPrincipalName.ToLower()) }
+$enabled = New-Object System.Collections.ArrayList
+$emails | ? { $_.ToLower() -in $all_emails } | % { [void]$enabled.Add($_.ToLower()) }
+$disabled = New-Object System.Collections.ArrayList
+$emails | ? { $_.ToLower() -notin $all_emails } | % { [void]$disabled.Add($_.ToLower()) }
 
-# save Guids to save from recycling bin
-$disabled_guids = $disabled | % { (Get-AzureADUser -ObjectId $_).ObjectId }
-# set dummy value on ImmutableId
-$disabled | % { Set-AzureADUser -ObjectId $_ -ImmutableId (
-	[Convert]::ToBase64String((Get-Random -Count 36 -InputObject $TokenSet))
-) }
+# remove immutableID
+$disabled | % { Set-MSOLUser -UserPrincipalName $_ -ImmutableId "$null" }
 
 # move accounts in AD
 $disabled | % { Get-ADuser -filter "userprincipalname -eq '$_'" | Move-ADObject -TargetPath $syncExcludedLocation }
 # force AD-Azure sync
 Start-ADSyncSyncCycle -PolicyType Delta
 Start-Sleep -Seconds 60
-# restore accounts
-$disabled_guid | % { Restore-AzureADMSDeletedDirectoryObject -Id $_ }
+# restore accounts - hopefully no longer necessary
+# $disabled_guid | % { Restore-AzureADMSDeletedDirectoryObject -Id $_ }
