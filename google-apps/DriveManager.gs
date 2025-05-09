@@ -58,6 +58,7 @@ function DriveManager(specs = {}) {
             spaces: 'drive',
             corpora: 'drive',
             includeItemsFromAllDrives: true,
+            supportsAllDrives: true,
             driveId: driveId,
             pageSize: 1000,
             pageToken: pageToken
