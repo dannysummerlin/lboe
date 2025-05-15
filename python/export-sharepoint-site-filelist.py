@@ -20,7 +20,7 @@ def get_file_versions(site_name, page_size = 5000, list_title = "Documents"):
 		.expand(["File","versions"])
 		.get_all(page_size, print_progress).execute_query()
 	)
-	return {items, context}
+	return items, context
 
 def get_site_items(site_name, page_size = 5000, list_title = "Documents", with_path=False, save_csv=True):
 	results = []
