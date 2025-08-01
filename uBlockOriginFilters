@@ -1,22 +1,55 @@
-# Custom rules especially for styling sites
-#
 # ----
-#
+# Custom rules especially for styling sites
 # start date:    Fri, 06 Jun 2003 00:00:00
+# ----
 
-news.ycombinator.com##body:style(color: #CCCCCC !important; background-color: #1A1A1A !important; )
-news.ycombinator.com##table:style(background-color: #2B2B2B !important; )
-news.ycombinator.com##input:style(background-color: #DFDFDF !important; )
-news.ycombinator.com##table, tr, td, .pagetop, .score:style(color: #CCCCCC !important; )
-news.ycombinator.com##td:style(border: 1px solid #2B2B2B !important; background-color: #2B2B2B !important; )
-news.ycombinator.com##b:style(color: inherit !important; )
-news.ycombinator.com##a, .c00:style(color: #eee !important; )
+app.powerbi.com##.ng-star-inserted.view-mode.copilot-tutorial-authoring-entry-point.tri-copilot-button
+app.powerbi.com##button.ng-star-inserted.actionBarBtn:nth-of-type(6)
+
+arstechnica.com##.cne-interlude-container
+
+connect.techboston.com##.GL4OBY5BJKH.cw-gxt-wnd
+connect.techboston.com##.GL4OBY5BPMI
+
+developer.salesforce.com###onetrust-consent-sdk
+
+github.com##.container-lg:style(max-width:none !important; )
+
+help.salesforce.com###onetrust-consent-sdk
+
+learn.microsoft.com###layout-body-aside:style(display:none)
+learn.microsoft.com###main:style(width:140%)
+
+lobste.rs###comment
+
 news.ycombinator.com##.c00 a:style(color: rgb(49, 140, 212) !important; )
-news.ycombinator.com##.comhead, .subtext:style(color: #828282 !important; )
+news.ycombinator.com##.c5a, .c88, .c9c:style(color: #999 !important; )
 news.ycombinator.com##.comhead > a, .subtext > a:style(color: orange !important; )
 news.ycombinator.com##.comhead font:style(color: #5a5a5a !important )
-news.ycombinator.com##.c5a, .c88, .c9c:style(color: #999 !important; )
-news.ycombinator.com##input:style(color: black !important; )
-news.ycombinator.com##textarea:style(background-color: #E0E0E0 !important; border-left: 12px solid #CCCCCC !important; )
+news.ycombinator.com##.comhead, .subtext:style(color: #828282 !important; )
+news.ycombinator.com##a, .c00:style(color: #eee !important; )
+news.ycombinator.com##b:style(color: inherit !important; )
+news.ycombinator.com##body:style(color: #CCCCCC !important; background-color: #1A1A1A !important; )
 news.ycombinator.com##font[color="#000000"]:style(color: #a3b72c !important; )
-github.com##.container-lg:style(max-width:none !important; )
+news.ycombinator.com##input:style(background-color: #DFDFDF !important; )
+news.ycombinator.com##input:style(color: black !important; )
+news.ycombinator.com##table, tr, td, .pagetop, .score:style(color: #CCCCCC !important; )
+news.ycombinator.com##table:style(background-color: #2B2B2B !important; )
+news.ycombinator.com##td:style(border: 1px solid #2B2B2B !important; background-color: #2B2B2B !important; )
+news.ycombinator.com##textarea:style(background-color: #E0E0E0 !important; border-left: 12px solid #CCCCCC !important; )
+
+old.reddit.com##.listingsignupbar.infobar
+old.reddit.com##.side
+
+stackoverflow.com##.g16.jc-space-around.fd-column.d-flex.bs-lg.py32.px128.hs2.w100.s-card.z-modal.l0.b0.ps-fixed
+stackoverflow.com##.is-visible.fs-body1.wmn3.s-popover
+
+www.digitaltrends.com###credential_picker_container
+
+www.expedia.co.uk###credential_picker_container
+www.expedia.com###credential_picker_container
+
+www.reddit.com###flex-left-nav-container
+www.reddit.com##.block.xs\:pb-0.pb-xl.xs\:max-w-\[316px\].xs\:w-\[316px\].w-full.min-w-0.right-sidebar
+
+||accounts.google.com/gsi/iframe/select$subdocument
