@@ -19,7 +19,7 @@ help.salesforce.com###onetrust-consent-sdk
 
 learn.microsoft.com###layout-body-aside:style(display:none)
 learn.microsoft.com###main:style(width:140%)
-learn.microsoft.com##.is-reading-width:style(max-width:unset)
+learn.microsoft.com##.is-reading-width:style(max-width:90%!important)
 
 lobste.rs###comment
 
