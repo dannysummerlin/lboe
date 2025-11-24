@@ -1,4 +1,4 @@
-Clear[centeringMatrix, getFourier, reverseFourier, lowPassCore, lowPassIdeal, gaussCore, lowPassGauss, butterworthCore, lowPassButterworth, highPassButterworth]
+Clear[centeringMatrix, getFourier, reverseFourier, idealCore, lowPassIdeal, highPassIdeal, gaussCore, lowPassGauss, highPassGauss, butterworthCore, lowPassButterworth, highPassButterworth]
 
 centeringMatrix = FunctionCompile@Function[{Typed[dimM, "Real64"], Typed[dimN, "Real64"]},
   Table[(-1)^(m + n), {m, 1, dimM}, {n, 1, dimN}]
