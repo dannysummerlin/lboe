@@ -43,7 +43,7 @@ lowPassGauss[imgData_, sigma_ : 2] := lowPassGauss[imgData, sigma] = Module[{M, 
     {M, N} = Dimensions[imgData];
     imgData*gaussCore[M, N, sigma]
 ];
-highPassGauss[imgData_, sigma_ : 2] := lowPassGauss[imgData, sigma] = Module[{M, N},
+highPassGauss[imgData_, sigma_ : 2] := highPassGauss[imgData, sigma] = Module[{M, N},
     {M, N} = Dimensions[imgData];
     imgData*(1-gaussCore[M, N, sigma])
 ];
