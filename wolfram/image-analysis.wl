@@ -1,8 +1,10 @@
 Clear[centeringMatrix, getFourier, reverseFourier, idealCore, lowPassIdeal, highPassIdeal, gaussCore, lowPassGauss, highPassGauss, butterworthCore, lowPassButterworth, highPassButterworth]
 
-centeringMatrix = FunctionCompile@Function[{Typed[dimM, "Real64"], Typed[dimN, "Real64"]},
+centeringMatrixFunction = FunctionCompile@Function[{Typed[dimM, "Real64"], Typed[dimN, "Real64"]},
   Table[(-1)^(m + n), {m, 1, dimM}, {n, 1, dimN}]
 ];
+centeringMatrix[dimM_, dimN_] := centeringMatrix[dimM, dimN] = centeringMatrixFunction[dimM, dimN];
+
 
 getFourier[img_, willFilter_ : True] := getFourier[img, willFilter] = Module[{imgData, dimM, dimN, centeredImgData}, 
     imgData = ImageData@ColorConvert[img, "Grayscale"];
