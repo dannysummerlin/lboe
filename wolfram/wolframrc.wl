@@ -33,5 +33,6 @@ columnInsert[a_, newCol_, pos_] := Module[{},
   Insert[Transpose[a], newCol, pos] // Transpose; (* tested MapThread[Insert[#1,#2,3]&,{testData,testCol}], slower *)
   Print["If updating original array, be sure to re-run columnNamesToIndexes"]
 ];
+standardizeMissing[d_] := d /. "" | "NA" | "<na>" | Missing["NotAvailable"] -> Missing[];
 
 Print["wolframrc loaded"]
