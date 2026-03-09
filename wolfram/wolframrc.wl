@@ -20,16 +20,16 @@ columnNamesToIndexes[dataSet_, namesRow_] := Do[
 Clear[columnNamesToKeys]
 columnNamesToKeys[csv_] := AssociationThread[ToString /@ csv[[1]] -> #] & /@ csv[[2 ;;]];
 Clear[columnDelete]
-columnDelete[a_, cols_Integer] := Module[
+columnDelete[a_, cols_Integer] := Module[{},
   Drop[a, None, {cols}]; (* faster than Delete[Transpose[m],cols]//Transpose;*)
   Print["If updating original array, be sure to re-run columnNamesToIndexes"]
 ];
-columnDelete[a_, cols_List] := Module[
+columnDelete[a_, cols_List] := Module[{},
   Drop[a, None, cols];(* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
   Print["If updating original array, be sure to re-run columnNamesToIndexes"]
 ];
 Clear[columnInsert]
-columnInsert[a_, newCol_, pos_] := Module[
+columnInsert[a_, newCol_, pos_] := Module[{},
   Insert[Transpose[a], newCol, pos] // Transpose; (* tested MapThread[Insert[#1,#2,3]&,{testData,testCol}], slower *)
   Print["If updating original array, be sure to re-run columnNamesToIndexes"]
 ];
