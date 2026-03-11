@@ -2,8 +2,8 @@
 SetOptions[EvaluationNotebook[], CellContext -> Notebook]
 
 (* Text functions *)
-Clear[formatText]
-formatText[text_String : "**Markdown** text will be *formatted* with ``", data_List : {"data"}, opts : OptionsPattern[]] := formatText[text, data, opts] = 
+Clear[dsFormatText]
+dsFormatText[text_String : "**Markdown** text will be *formatted* with ``", data_List : {"data"}, opts : OptionsPattern[]] := formatText[text, data, opts] = 
 	With[{f = CreateTemporary[]}, Module[{newText},
 		WriteString[f, TemplateApply[text, data]];
 		newText = Import[f, {"Markdown", "FormattedText"}];
@@ -12,34 +12,99 @@ formatText[text_String : "**Markdown** text will be *formatted* with ``", data_L
 ]];
 
 (* Data manipulation functions *)
-Clear[columnNamesToIndexes]
-columnNamesToIndexes[dataSet_, namesRow_Integer] := Do[
+Clear[dsColumnNamesToIndexes]
+dsColumnNamesToIndexes[dataSet_, namesRow_Integer] := Do[
 	ToExpression[dataSet[[namesRow, i]], InputForm, Function[name, name = i, HoldAll]],
 	{i, Length@dataSet[[namesRow]]}
 ];
-columnNamesToIndexes[dataSet_] := columnNamesToIndexes[dataSet, 1] 
-Clear[columnNamesToKeys]
-columnNamesToKeys[csv_] := AssociationThread[ToString /@ csv[[1]] -> #] & /@ csv[[2 ;;]];
-Clear[columnDelete]
-columnDelete[a_, cols_Integer] := Module[{},
+dsColumnNamesToIndexes[dataSet_] := columnNamesToIndexes[dataSet, 1] 
+Clear[dsColumnNamesToKeys]
+dsColumnNamesToKeys[csv_] := AssociationThread[ToString /@ csv[[1]] -> #] & /@ csv[[2 ;;]];
+Clear[dsColumnDelete]
+dsColumnDelete[a_, cols_Integer] := Module[{},
 	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Drop[a, None, {cols}] (* faster than Delete[Transpose[m],cols]//Transpose;*)
 ];
-columnDelete[a_, cols_List] := Module[{},
+dsColumnDelete[a_, cols_List] := Module[{},
 	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
 ];
-Clear[columnInsert]
-columnInsert[a_, newCol_, pos_Integer] := Module[{},
+Clear[dsColumnInsert]
+dsColumnInsert[a_, newCol_, pos_Integer] := Module[{},
 	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Insert[Transpose[a], newCol, pos] // Transpose (* tested MapThread[Insert[#1,#2,3]&,{testData,testCol}], slower *)
 ];
-columnInsert[a_, newCol_]:=columnInsert[a, newCol, 1]
+dsColumnInsert[a_, newCol_]:=columnInsert[a, newCol, 1]
+
 
 (* Data cleanup *)
-Clear[standardizeMissing]
-standardizeMissing[d_] := d /. "" | "NA" | "<na>" | Missing["NotAvailable"] -> Missing[]
-Clear[handleMissing]
-handleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
+Clear[dsStandardizeMissing]
+(* should add depth handling *)
+dsStandardizeMissing[d_] := d /.""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[]
+Clear[dsHandleMissing]
+dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
+
+(* Data summary *)
+Clear[dsColumnSummaryNumeric]
+dsColumnSummaryNumeric[col_List] := Module[{colClean, min, qu25, median, mean, qu75, max, na},
+  colClean = DeleteMissing[col];
+  min = Min[colClean];
+  qu25 = Quantile[colClean, 1/4];
+  median = Median[colClean];
+  mean = Mean[colClean];
+  qu75 = Quantile[colClean, 3/4];
+  max = Max[colClean];
+  na = Count[col, _Missing];
+  Return[{min, qu25, median, mean, qu75, max, na}]
+];
+
+Clear[dsSummaryNumeric]
+dsSummaryNumeric[data_] := Module[{numCols, colNames, summ, summWithHeadings},
+  numCols = Map[Style[#, Bold, FontSize -> 16] &,
+    {"min", "25%", "median", "mean", "75%", "max", "#NA"}];
+  colNames = Map[Style[#, Bold, FontSize -> 16] &, data[[1]]];
+  summ = N@Map[numColSummary, Transpose[data][[All, 2 ;;]]];
+  summWithHeadings = Prepend[summ, numCols];
+  Return[insertColumn[summWithHeadings, Prepend[colNames, ""], 1]]
+];
+Clear[dsColumnSummaryCategorical]
+dsColumnSummaryCategorical[col_List] := Module[{categories, counts},
+dsCategories = Sort@DeleteMissing@DeleteDuplicates@col;
+dsCounts = Map[Count[DeleteMissing[col], #] &, categories];
+Append[counts, Count[col, _Missing]]   (* <-- *)
+];
+Clear[dsColumnDisplayCategorical]
+dsColumnDisplayCategorical[col_List] := Module[{categories, catCols},
+  categories = DeleteMissing@Union@col[[2 ;;]];
+  catCols = Map[Style[#, Bold, FontSize -> 16] &, Append[categories, "#NA"]];
+  Return[{
+    Join[{""}, catCols], 
+    Flatten[{Style[col[[1]], Bold, FontSize -> 16], 
+    dsColumnSummaryCategorical[col[[2 ;;]]]}],
+    Table["", {Length[catCols] + 1}]
+  }]
+];
+Clear[dsSummaryCategorical]
+dsSummaryCategorical[data_] := Module[{table},
+  table = Map[dsColumnDisplayCategorical, Transpose[data]];
+  Return[Map[Transpose, table]]
+];
+Clear[dsColumnNumericQ]
+dsColumnNumericQ[col_List] := AllTrue[DeleteMissing[col[[2 ;;]]], NumericQ];
+Clear[dsDataSummary]
+dsDataSummary[data_List] := Module[{totalPts, totalNAs, numData, catData},
+  totalPts = Length[data] - 1;
+  totalNAs = Length@Select[data[[2 ;;]], MemberQ[#, Missing[]] &];
+  numData = Select[Transpose[data], dsColumnNumericQ];
+  catData = Select[Transpose[data], Not@dsColumnNumericQ[#] &];
+  Return[Join[
+    {{Style["# points", Bold], totalPts}},
+    {{Style["# NA points", Bold], totalNAs}},
+    {""},
+    If[Length[numData] == 0, {}, dsSummaryNumeric[Transpose[numData]]],
+    {""},
+    If[Length[catData] == 0, {}, dsSummaryCategorical[Transpose[catData]]]
+  ] // TableForm]
+];
 
 Print["wolframrc loaded"]
