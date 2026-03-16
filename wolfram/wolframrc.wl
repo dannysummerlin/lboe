@@ -63,6 +63,13 @@ dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
 Clear[dsStandardizeMissing]
 dsStandardizeMissing[data_] := Replace[data,""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[],Infinity]
 
+Clear[dsRemoveNonnumericRows]
+dsRemoveNonnumericRows[data_]:=Module[{},
+  <|
+    # -> Delete[obVals[[#]], Position[
+      NumericQ[#] &/@ obVals[["column1"]], False]] &/@ Keys[obVals]
+  |>
+
 Clear[dsHandleMissing]
 dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
 
