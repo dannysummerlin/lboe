@@ -12,14 +12,28 @@ dsFormatText[text_String : "**Markdown** text will be *formatted* with ``", data
 ]];
 
 (* Data manipulation functions *)
-Clear[dsColumnNamesToIndexes]
-dsColumnNamesToIndexes[dataSet_, namesRow_Integer] := Do[
-	ToExpression[dataSet[[namesRow, i]], InputForm, Function[name, name = i, HoldAll]],
-	{i, Length@dataSet[[namesRow]]}
+Clear[ColumnNames]
+dsCleanColumnNames[data_, opts: OptionsPattern[]]:=Module[{namesRow},
+  namesRow=Lookup[{opts},"namesRow",1];
+  data[[namesRow]]=MapIndexed[If[StringQ[#], #, "Column" <> ToString@#2[[1]]] &,data[[namesRow]]];
+  data[[namesRow]]=StringReplace[#, RegularExpression["[\\s_](\\w)"] :> ToUpperCase["$1"]]&/@data[[namesRow]];
+  Return[data]
 ];
-dsColumnNamesToIndexes[dataSet_] := columnNamesToIndexes[dataSet, 1] 
+
+Clear[dsColumnNamesToIndexes]
+dsColumnNamesToIndexes[data_, opts: OptionsPattern[]]:=Module[{namesRow},
+  namesRow=Lookup[{opts},"namesRow", 1];
+  Do[
+	 ToExpression[data[[namesRow, i]], InputForm, Function[name, name = i, HoldAll]],
+	 {i, Length@data[[namesRow]]}
+]];
+
 Clear[dsColumnNamesToKeys]
-dsColumnNamesToKeys[csv_] := AssociationThread[ToString /@ csv[[1]] -> #] & /@ csv[[2 ;;]];
+dsColumnNamesToKeys[data_, opts: OptionsPattern[]]:=Module[{namesRow},
+  namesRow=Lookup[{opts},"namesRow", 1];
+  AssociationThread[ToString /@ data[[namesRow]] -> #] & /@ data[[namesRow+1 ;;]]
+]
+
 Clear[dsColumnDelete]
 dsColumnDelete[a_, cols_Integer] := Module[{},
 	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
@@ -30,17 +44,18 @@ dsColumnDelete[a_, cols_List] := Module[{},
 	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
 ];
 Clear[dsColumnInsert]
-dsColumnInsert[a_, newCol_, pos_Integer] := Module[{},
+dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
+  position=Lookup[{opts},"position", 1];
 	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
-	Insert[Transpose[a], newCol, pos] // Transpose (* tested MapThread[Insert[#1,#2,3]&,{testData,testCol}], slower *)
+	Insert[Transpose[a], newCol, position] // Transpose
+  (* tested MapThread[Insert[#1,#2,3]&,{testData,testCol}], slower *)
 ];
-dsColumnInsert[a_, newCol_]:=columnInsert[a, newCol, 1]
-
 
 (* Data cleanup *)
 Clear[dsStandardizeMissing]
 (* should add depth handling *)
 dsStandardizeMissing[d_] := d /.""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[]
+
 Clear[dsHandleMissing]
 dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
 
@@ -67,12 +82,14 @@ dsSummaryNumeric[data_] := Module[{numCols, colNames, summ, summWithHeadings},
   summWithHeadings = Prepend[summ, numCols];
   Return[insertColumn[summWithHeadings, Prepend[colNames, ""], 1]]
 ];
+
 Clear[dsColumnSummaryCategorical]
 dsColumnSummaryCategorical[col_List] := Module[{categories, counts},
 dsCategories = Sort@DeleteMissing@DeleteDuplicates@col;
 dsCounts = Map[Count[DeleteMissing[col], #] &, categories];
 Append[counts, Count[col, _Missing]]   (* <-- *)
 ];
+
 Clear[dsColumnDisplayCategorical]
 dsColumnDisplayCategorical[col_List] := Module[{categories, catCols},
   categories = DeleteMissing@Union@col[[2 ;;]];
@@ -84,11 +101,13 @@ dsColumnDisplayCategorical[col_List] := Module[{categories, catCols},
     Table["", {Length[catCols] + 1}]
   }]
 ];
+
 Clear[dsSummaryCategorical]
 dsSummaryCategorical[data_] := Module[{table},
   table = Map[dsColumnDisplayCategorical, Transpose[data]];
   Return[Map[Transpose, table]]
 ];
+
 Clear[dsColumnNumericQ]
 dsColumnNumericQ[col_List] := AllTrue[DeleteMissing[col[[2 ;;]]], NumericQ];
 Clear[dsDataSummary]
@@ -106,5 +125,15 @@ dsDataSummary[data_List] := Module[{totalPts, totalNAs, numData, catData},
     If[Length[catData] == 0, {}, dsSummaryCategorical[Transpose[catData]]]
   ] // TableForm]
 ];
+
+dsStandardPipeline[data_, opts: OptionsPattern[]]:=Module[{namesRow, dropMissing},
+  namesRow=Lookup[{opts},"namesRow", 1];
+  dropMissing=Lookup[{opts},"dropMissing", False];
+  RightComposition[
+    dsCleanColumnNames[data, "namesRow"->namesRow],
+    dsStandardizeMissing[data],
+    If[dropMissing,dsHandleMissing[data],data],
+    dsColumnNamesToKeys[data, "namesRow"->namesRow]
+]];
 
 Print["wolframrc loaded"]
