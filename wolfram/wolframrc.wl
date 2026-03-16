@@ -12,13 +12,15 @@ dsFormatText[text_String : "**Markdown** text will be *formatted* with ``", data
 ]];
 
 (* Data manipulation functions *)
-Clear[ColumnNames]
-dsCleanColumnNames[data_, opts: OptionsPattern[]]:=Module[{namesRow},
-  namesRow=Lookup[{opts},"namesRow",1];
-  data[[namesRow]]=MapIndexed[If[StringQ[#], #, "Column" <> ToString@#2[[1]]] &,data[[namesRow]]];
-  data[[namesRow]]=StringReplace[#, RegularExpression["[\\s_](\\w)"] :> ToUpperCase["$1"]]&/@data[[namesRow]];
-  Return[data]
-];
+Clear[dsCleanColumnNames]
+dsCleanColumnNames[data_, opts: OptionsPattern[]]:=Module[{namesRow, out},
+  namesRow = Lookup[{opts}, "namesRow", 1];
+  out = Prepend[data[[namesRow + 1 ;;]],
+    MapIndexed[If[StringQ[#], #, "column" <> ToString@#2[[1]]] &, 
+    data[[namesRow]]]];
+  Prepend[out[[2 ;;]], 
+    StringReplace[#, RegularExpression["[\\s_](\\w)"]:>ToUpperCase["$1"]]&/@ out[[1]]
+]];
 
 Clear[dsColumnNamesToIndexes]
 dsColumnNamesToIndexes[data_, opts: OptionsPattern[]]:=Module[{namesRow},
@@ -30,6 +32,12 @@ dsColumnNamesToIndexes[data_, opts: OptionsPattern[]]:=Module[{namesRow},
 
 Clear[dsColumnNamesToKeys]
 dsColumnNamesToKeys[data_, opts: OptionsPattern[]]:=Module[{namesRow},
+  namesRow=Lookup[{opts},"namesRow", 1];
+  Association@MapIndexed[#->Flatten@data[[namesRow+1;;,#2]] &, data[[namesRow]]]
+]
+
+Clear[dsRowsToObjects]
+dsRowsToObjects[data_, opts: OptionsPattern[]]:=Module[{namesRow},
   namesRow=Lookup[{opts},"namesRow", 1];
   AssociationThread[ToString /@ data[[namesRow]] -> #] & /@ data[[namesRow+1 ;;]]
 ]
@@ -53,8 +61,7 @@ dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
 
 (* Data cleanup *)
 Clear[dsStandardizeMissing]
-(* should add depth handling *)
-dsStandardizeMissing[d_] := d /.""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[]
+dsStandardizeMissing[data_] := Replace[data,""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[],Infinity]
 
 Clear[dsHandleMissing]
 dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
@@ -130,10 +137,12 @@ dsStandardPipeline[data_, opts: OptionsPattern[]]:=Module[{namesRow, dropMissing
   namesRow=Lookup[{opts},"namesRow", 1];
   dropMissing=Lookup[{opts},"dropMissing", False];
   RightComposition[
-    dsCleanColumnNames[data, "namesRow"->namesRow],
-    dsStandardizeMissing[data],
-    If[dropMissing,dsHandleMissing[data],data],
-    dsColumnNamesToKeys[data, "namesRow"->namesRow]
-]];
+    dsCleanColumnNames,
+    dsStandardizeMissing,
+    (* TODO *)
+    (* If[dropMissing,dsHandleMissing], *)
+    dsColumnNamesToKeys
+  ][data,"namesRow"->namesRow]
+];
 
 Print["wolframrc loaded"]
