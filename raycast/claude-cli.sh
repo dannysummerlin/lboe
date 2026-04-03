@@ -9,4 +9,4 @@
 # @raycast.icon 🛠
 # @raycast.argument1 { "type": "text", "placeholder": "Enter text" }
 
-claude -p "$1"
+claude -p "//btw $1"
