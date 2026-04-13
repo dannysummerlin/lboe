@@ -14,17 +14,14 @@ dsFormatText[text_String : "**Markdown** text will be *formatted* with ``", data
 
 Clear[dsColumnDelete]
 dsColumnDelete[a_, cols_Integer] := Module[{},
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Drop[a, None, {cols}] (* faster than Delete[Transpose[m],cols]//Transpose;*)
 ];
 dsColumnDelete[a_, cols_List] := Module[{},
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
 ];
 Clear[dsColumnInsert]
 dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
 	position=Lookup[{opts},"position", 1];
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
 	Transpose@Insert[Transpose[a], newCol, position]
 ];
 
@@ -46,35 +43,34 @@ dsFormatData[data_, opts: OptionsPattern[]]:=Module[{namesRow},
 ]
 
 Clear[dsApplyFilters]
-dsApplyFilters[data_, opts : OptionsPattern[]] := Module[{filters},
-	filters=Lookup[{opts},"applyFilters", False];
-	If[filters==False,Return[data],
-		RightComposition[Sequence @@ filters][data]
+dsApplyFilters[data_, opts : OptionsPattern[]] := Module[{applyFilters},
+	applyFilters=Lookup[{opts},"applyFilters", {}];
+	If[Length[applyFilters]==0,
+		Return[data],
+		Return[RightComposition[Sequence @@ applyFilters][data]]
 	]
 ]
 
 Clear[dsStandardizeMissing]
 dsStandardizeMissing[data_] := Replace[data,""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[],Infinity]
-
 Clear[dsRemoveNonnumericRows]
 dsRemoveNonnumericRows[data_] := Module[{},
 	<| # -> Delete[obVals[[#]], Position[NumericQ[#] &/@ obVals[["column1"]], False]] &/@ Keys[obVals] |>
 ];
-
 Clear[dsHandleMissing]
 dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
 
 dsStandardPipeline[data_, opts: OptionsPattern[]]:=Module[{namesRow, dropMissing},
 	namesRow=Lookup[{opts},"namesRow", 1];
 	dropMissing=Lookup[{opts},"dropMissing", False];
-	applyFilters=Lookup[{opts},"applyFilters", False];
+	(* applyFilters=Lookup[{opts},"applyFilters", False]; *)
 	RightComposition[
-		dsCleanColumnNames,
-		dsStandardizeMissing,
+		dsCleanColumnNames
+		,dsStandardizeMissing
 		(* TODO *)
 		(* If[dropMissing,dsHandleMissing], *)
-		dsFormatData
-		dsApplyFilters
+		,dsFormatData
+		(* dsApplyFilters *)
 	][data,"namesRow"->namesRow, "applyFilters"->applyFilters]
 ];
 
@@ -97,10 +93,10 @@ dsColumnSummaryNumeric[col_List] := Module[{colClean},
 Clear[dsSummaryNumeric]
 dsSummaryNumeric[data_] := Module[{numCols, colNames, summaries, summWithHeadings},
 	numCols = Map[Style[#, Bold, FontSize -> 16] &, {"min", "25%", "median", "mean", "75%", "max", "std", "#NA"}];
-	colNames = Map[Style[#, Bold, FontSize -> 16] &, Keys[data]];
-	summaries = N@dsColumnSummaryNumeric[data[[#,All]]] &/@ Keys[data];
+	colNames = Prepend[Map[Style[#, Bold, FontSize -> 16] &, First@Keys[data]],""];
+	summaries = N@dsColumnSummaryNumeric[data[[All,#]]] &/@ First@Keys[data];
 	summWithHeadings = Prepend[summaries, numCols];
-	Return[dsColumnInsert[summWithHeadings, Prepend[colNames,""]]]
+	Return[Transpose@dsColumnInsert[summWithHeadings, colNames]]
 ];
 
 Clear[dsColumnSummaryCategorical]
@@ -124,8 +120,8 @@ dsColumnDisplayCategorical[col_List] := Module[{categories, catCols},
 
 Clear[dsSummaryCategorical]
 dsSummaryCategorical[data_] := Module[{summaries},
-	summaries = Tally[#] &/@ data;
-	{Style[Keys[#][[1]], Bold,FontSize->16], Values@#} &/@ {summaries}
+	summaries = Tally[Flatten@Values@data];
+	{Style[#[[1]], Bold,FontSize->16], #[[2]]} &/@ summaries
 ];
 
 Clear[dsColumnNumericQ]
@@ -133,17 +129,17 @@ dsColumnNumericQ[col_List] := AllTrue[DeleteMissing[col], NumericQ];
 
 Clear[dsSummary]
 dsSummary[data_] := Module[{totalPts, totalNAs, numDataPositions, catDataPositions},
-	totalPts = Length@data[[1]] - 1;
+	totalPts = Length@data;
 	totalNAs = Length@Select[Values@data, MemberQ[#, Missing[]] &];
-	numDataPositions = Position[AllTrue[DeleteMissing[#], NumericQ] & /@ Values@data, True] // Flatten;
-	catDataPositions = Position[AllTrue[DeleteMissing[#], NumericQ] & /@ Values@data, False] // Flatten;
+	numDataPositions = Position[AllTrue[DeleteMissing[#], NumericQ] & /@ (data[[All, #]] & /@ Keys[data[[1]]]), True] // Flatten;
+	catDataPositions = Position[AllTrue[DeleteMissing[#], NumericQ] & /@ (data[[All, #]] & /@ Keys[data[[1]]]), False] // Flatten;
 	{
 		{{Style["# points", Bold], totalPts}},
 		{{Style["# NA points", Bold], totalNAs}},
 		{""},
-		If[Length@numDataPositions == 0, {}, dsSummaryNumeric@data[[numDataPositions]]],
+		If[Length@numDataPositions == 0, {}, dsSummaryNumeric@data[[All,numDataPositions]]],
 		{""},
-		If[Length@catDataPositions == 0, {}, dsSummaryCategorical@data[[catDataPositions]]]
+		If[Length@catDataPositions == 0, {}, dsSummaryCategorical@data[[All,catDataPositions]]]
 	} // TableForm
 ];
 
@@ -181,6 +177,7 @@ dsScatterPlotMatrix[groupedValues_, features_, valueClasses_List, lower_ : 0, up
 	}, Alignment -> Center]
 ];
 
+(* Machine learning *)
 dsTrainingTestDataSplit[data_] := Module[{trainingData},
 	trainingData = RandomSample[data, Floor[Length@data*0.8]];
 	<|"training" -> trainingData, "test" -> Complement[data, trainingData]|>
