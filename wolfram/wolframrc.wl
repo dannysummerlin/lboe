@@ -12,7 +12,23 @@ dsFormatText[text_String : "**Markdown** text will be *formatted* with ``", data
 		Style[newText, FilterRules[{opts}, Options[Style]]]
 ]];
 
-(* Data manipulation functions *)
+Clear[dsColumnDelete]
+dsColumnDelete[a_, cols_Integer] := Module[{},
+	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
+	Drop[a, None, {cols}] (* faster than Delete[Transpose[m],cols]//Transpose;*)
+];
+dsColumnDelete[a_, cols_List] := Module[{},
+	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
+	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
+];
+Clear[dsColumnInsert]
+dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
+	position=Lookup[{opts},"position", 1];
+	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
+	Transpose@Insert[Transpose[a], newCol, position]
+];
+
+(* Data cleanup *)
 Clear[dsCleanColumnNames]
 dsCleanColumnNames[data_, opts: OptionsPattern[]]:=Module[{namesRow, out},
 	namesRow = Lookup[{opts}, "namesRow", 1];
@@ -23,44 +39,20 @@ dsCleanColumnNames[data_, opts: OptionsPattern[]]:=Module[{namesRow, out},
 		StringReplace[#, RegularExpression["[\\s_](\\w)"]:>ToUpperCase["$1"]]&/@ out[[1]]
 ]];
 
-Clear[dsColumnNamesToIndexes]
-dsColumnNamesToIndexes[data_, opts: OptionsPattern[]]:=Module[{namesRow},
+Clear[dsFormatData]
+dsFormatData[data_, opts: OptionsPattern[]]:=Module[{namesRow},
 	namesRow=Lookup[{opts},"namesRow", 1];
-	Do[
-		ToExpression[data[[namesRow, i]], InputForm, Function[name, name = i, HoldAll]],
-		{i, Length@data[[namesRow]]}
-]];
-
-Clear[dsColumnNamesToKeys]
-dsColumnNamesToKeys[data_, opts: OptionsPattern[]]:=Module[{namesRow},
-	namesRow=Lookup[{opts},"namesRow", 1];
-	Association@MapIndexed[#->Flatten@data[[namesRow+1;;,#2]] &, data[[namesRow]]]
+	Tabular[data[[namesRow+1 ;;]], data[[namesRow]]] // Dataset // Normal
 ]
 
-Clear[dsRowsToObjects]
-dsRowsToObjects[data_, opts: OptionsPattern[]]:=Module[{namesRow},
-	namesRow=Lookup[{opts},"namesRow", 1];
-	AssociationThread[ToString /@ data[[namesRow]] -> #] & /@ data[[namesRow+1 ;;]]
+Clear[dsApplyFilters]
+dsApplyFilters[data_, opts : OptionsPattern[]] := Module[{filters},
+	filters=Lookup[{opts},"applyFilters", False];
+	If[filters==False,Return[data],
+		RightComposition[Sequence @@ filters][data]
+	]
 ]
 
-Clear[dsColumnDelete]
-dsColumnDelete[a_, cols_Integer] := Module[{},
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
-	Drop[a, None, {cols}] (* faster than Delete[Transpose[m],cols]//Transpose;*)
-];
-dsColumnDelete[a_, cols_List] := Module[{},
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
-	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
-];
-
-Clear[dsColumnInsert]
-dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
-	position=Lookup[{opts},"position", 1];
-	Print["If updating original array, be sure to re-run columnNamesToIndexes"];
-	Transpose@Insert[Transpose[a], newCol, position]
-];
-
-(* Data cleanup *)
 Clear[dsStandardizeMissing]
 dsStandardizeMissing[data_] := Replace[data,""|"NA"|"<na>"|Missing["NotAvailable"]->Missing[],Infinity]
 
@@ -71,6 +63,20 @@ dsRemoveNonnumericRows[data_] := Module[{},
 
 Clear[dsHandleMissing]
 dsHandleMissing[d_] := Map[If[MemberQ[#, _Missing, Infinity], Missing[], #]&, d]
+
+dsStandardPipeline[data_, opts: OptionsPattern[]]:=Module[{namesRow, dropMissing},
+	namesRow=Lookup[{opts},"namesRow", 1];
+	dropMissing=Lookup[{opts},"dropMissing", False];
+	applyFilters=Lookup[{opts},"applyFilters", False];
+	RightComposition[
+		dsCleanColumnNames,
+		dsStandardizeMissing,
+		(* TODO *)
+		(* If[dropMissing,dsHandleMissing], *)
+		dsFormatData
+		dsApplyFilters
+	][data,"namesRow"->namesRow, "applyFilters"->applyFilters]
+];
 
 (* Data summary *)
 Clear[dsColumnSummaryNumeric]
@@ -140,18 +146,6 @@ dsSummary[data_] := Module[{totalPts, totalNAs, numDataPositions, catDataPositio
 		If[Length@catDataPositions == 0, {}, dsSummaryCategorical@data[[catDataPositions]]]
 	} // TableForm
 ];
-
-dsStandardPipeline[data_, opts: OptionsPattern[]]:=Module[{namesRow, dropMissing},
-	namesRow=Lookup[{opts},"namesRow", 1];
-	dropMissing=Lookup[{opts},"dropMissing", False];
-	RightComposition[
-	dsCleanColumnNames,
-	dsStandardizeMissing,
-	(* TODO *)
-	(* If[dropMissing,dsHandleMissing], *)
-	dsColumnNamesToKeys][data,"namesRow"->namesRow]
-];
-
 
 dsTestLinearModelFits[data_, colsToCheck_List, nominalVariable_ : 0] := Module[{},
 	LinearModelFit[data[[2 ;;, Symbol[#] & /@ colsToCheck]],
