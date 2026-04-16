@@ -20,9 +20,10 @@ dsColumnDelete[a_, cols_List] := Module[{},
 	Drop[a, None, cols](* faster than Delete[Transpose[m],Map[{#}&,cols]]//Transpose;*)
 ];
 Clear[dsColumnInsert]
-dsColumnInsert[a_, newCol_, opts: OptionsPattern[]] := Module[{position},
-	position=Lookup[{opts},"position", 1];
-	Transpose@Insert[Transpose[a], newCol, position]
+dsColumnInsert[data_, colName_, newCol_] := Module[{newData},
+   newData = data;
+   newData[[All, colName]] = newCol;
+   newData
 ];
 
 (* Data cleanup *)
@@ -45,9 +46,9 @@ dsFormatData[data_, opts: OptionsPattern[]]:=Module[{namesRow},
 Clear[dsApplyFilters]
 dsApplyFilters[data_, opts : OptionsPattern[]] := Module[{applyFilters},
 	applyFilters=Lookup[{opts},"applyFilters", {}];
-	If[Length[applyFilters]==0,
-		Return[data],
-		Return[RightComposition[Sequence @@ applyFilters][data]]
+	If[applyFilters=={},
+		data,
+		Select[applyFilters][data]
 	]
 ]
 
@@ -92,11 +93,18 @@ dsColumnSummaryNumeric[col_List] := Module[{colClean},
 
 Clear[dsSummaryNumeric]
 dsSummaryNumeric[data_] := Module[{numCols, colNames, summaries, summWithHeadings},
-	numCols = Map[Style[#, Bold, FontSize -> 16] &, {"min", "25%", "median", "mean", "75%", "max", "std", "#NA"}];
-	colNames = Prepend[Map[Style[#, Bold, FontSize -> 16] &, First@Keys[data]],""];
+	numCols = Map[Style[#, Bold] &, {"min", "25%", "median", "mean", "75%", "max", "std", "#NA"}];
+	colNames = Prepend[Map[Style[#, Bold] &, First@Keys[data]],""];
 	summaries = N@dsColumnSummaryNumeric[data[[All,#]]] &/@ First@Keys[data];
 	summWithHeadings = Prepend[summaries, numCols];
-	Return[Transpose@dsColumnInsert[summWithHeadings, colNames]]
+	Return[Insert[Transpose[summWithHeadings], colNames, 1]]
+];
+
+Clear[dsReplaceMissing]
+dsReplaceMissing[data_, column_, type_:Median]:=Module[{newData,newValues},
+	newData = data;
+	newData[[All, column]] = data[[All, column]] /. Missing[] -> type[DeleteMissing@data[[All, column]]];
+	newData
 ];
 
 Clear[dsColumnSummaryCategorical]
@@ -144,10 +152,20 @@ dsSummary[data_] := Module[{totalPts, totalNAs, numDataPositions, catDataPositio
 ];
 
 dsTestLinearModelFits[data_, colsToCheck_List, nominalVariable_ : 0] := Module[{},
-	LinearModelFit[data[[2 ;;, Symbol[#] & /@ colsToCheck]],
+	LinearModelFit[data[[All, Symbol[#] & /@ colsToCheck]],
 	Prepend[Symbol["x" <> Capitalize[#]] & /@ Drop[colsToCheck, -1], 1],
 	Symbol["x" <> Capitalize[#]] & /@ Drop[colsToCheck, -1],
 	NominalVariables -> If[nominalVariable == 0, None, Symbol["x" <> Capitalize@nominalVariable]]
+(*
+LinearModelFit[
+   Values@housingFiltered[[All, #]],
+   Prepend[Symbol /@ #[[;; -2]], 1],
+   Symbol /@ #[[;; -2]]
+] & /@ {
+  {"medianIncome", "roomsPerHouse", "medianHouseValue"},
+  {"housingMedianAge", "roomsPerHouse", "medianHouseValue"}
+}
+ *)
 ]];
 
 dsScatterPlotMatrix[groupedValues_, features_, valueClasses_List, lower_ : 0, upperLim_ : 0] := Module[{classes, pos, legend, upper},
@@ -177,6 +195,76 @@ dsScatterPlotMatrix[groupedValues_, features_, valueClasses_List, lower_ : 0, up
 	}, Alignment -> Center]
 ];
 
+Clear[dsLinearModelFit]
+dsLinearModelFit[data_, column1_, column2_] := Module[{},
+	LinearModelFit[Values@data[[All, {column1, column2}]], {1, x}, x]
+];
+
+Clear[dsLogitModelFit]
+dsLogitModelFit[data_, column1_, column2_] := Module[{model,outliers},
+	model = LogitModelFit[Values@data[[All, {column1, column2}]], x, x];
+	outliers = dsGetOutliers[model];
+	If[Length[outliers]>0,
+		Print["Outliers found: ", outliers], Print[]
+	];
+	model
+];
+
+Clear[dsGetOutliers]
+dsGetOutliers[model_, opts: OptionsPattern[]] := Module[{threshold},
+	threshold=Lookup[{opts},"threshold", .75];
+	Select[
+		Normalize@model["CookDistances"],
+		# > threshold & -> "Index"
+	]
+];
+
+dsHilightOutlierLinear[data_, column1_, column2_, opts: OptionsPattern[]] := Module[{linearModel},
+	linearModel = dsLinearModelFit[data,column1,column2];
+	dsHilightOutlier[data, column1, column2, linearModel, opts]
+]
+dsHilightOutlierLogit[data_, column1_, column2_, opts: OptionsPattern[]] := Module[{logitModel},
+	logitModel = dsLogitModelFit[data,column1,column2];
+	dsHilightOutlier[data, column1, column2, logitModel, opts]
+]
+Clear[dsHilightOutlier]
+dsHilightOutlier[data_, column1_, column2_, model_, opts: OptionsPattern[]] := Module[{threshold},
+	threshold=Lookup[{opts},"threshold", .75];
+	outlierIndex = dsGetOutliers[model, "threshold"->threshold];
+	Show[
+		Plot[{
+				model[x],
+				model["MeanPredictionBands"],
+				model["SinglePredictionBands"]
+			}
+			,{x, 0, Max@data[[All, column1]]}
+			,AxesLabel -> {column1, column2}
+			,Filling -> {2}
+		],
+		ListPlot@Values@data[[All, {column1, column2}]],
+		Graphics[{
+			Red
+			,PointSize[Large]
+			,Point[Values@data[[outlierIndex, {column1, column2}]]]
+		}]
+	]
+];
+
+(* TODO *)
+fracInWindow[data_, beg_, end_] := Module[{dataInWindow},
+   dataInWindow = Select[data, beg <= #1[[1]] < end &];
+   
+   N[If[Length[dataInWindow] === 0, 0, Mean[dataInWindow[[All, 2]]]]]
+];
+
+binnedProbs[data_List, xMin_, xMax_, nBins_Integer] := Module[{dx},
+   dx = (xMax - xMin)/nBins;
+   
+   N[Table[{x, fracInWindow[data, x - dx/2, x + dx/2]}, {x, 
+      xMin + dx/2, xMax - dx/2, dx}]]
+];
+
+
 (* Machine learning *)
 dsTrainingTestDataSplit[data_] := Module[{trainingData},
 	trainingData = RandomSample[data, Floor[Length@data*0.8]];
@@ -195,6 +283,65 @@ dsTrain[data_,result_:-1]:=Module[{trainingData,testData},
 dsClassify[trainingData_,result_:-1]:=Module[{},
 	(* TODO *)
 	Classify[trainingData[[All, Drop[Keys@trainingData, result] ]] -> trainingData[[All, result]]]
+];
+
+
+dsTPRAndFPR :=
+ (TableForm[{{"TPR", N@Divide[#[[1, 1]], Total@#[[1]]]},
+     {"FPR", N@Divide[#[[2, 1]], Total@#[[2]]]}}] &)
+dsRocSpace := ({
+    Divide[#[[1, 1]], Total@#[[1]]],
+    Divide[#[[2, 1]], Total@#[[2]]]
+    } &)
+
+Clear[dsRocPlot]
+dsRocPlot[t_] := Module[{tpr, fpr},
+  tpr = Divide[t[[1, 1]], Total@t[[1]]];
+  fpr = Divide[t[[2, 1]], Total@t[[2]]];
+  Show[
+		Plot[
+			x, {x, 0, 1}, PlotRange -> {{0, 1}, {0, 1}}, 
+			PlotStyle -> {Black, Thick}, AspectRatio -> 1, Frame -> True, 
+			FrameLabel -> {"FPR = " <> ToString[N@fpr], "TPR (recall or sensitivity) = " <> ToString[N@tpr]}, 
+			LabelStyle -> Directive[Medium], Filling -> Top, 
+			FillingStyle -> LightBlue],
+		Labelled[Graphics[{Red, PointSize[Large], Point[{fpr, tpr}]}], "FPR = " <> ToString[N@fpr] <>"\nTPR (recall or sensitivity) = " <> ToString[N@tpr]]
+	]
+];
+
+Clear[dsRocPlot]
+dsRocPlot[t_List] := Module[{},
+	Show[
+   	Plot[x, {x, 0, 1}, PlotRange -> {{0, 1}, {0, 1}}, 
+			PlotStyle -> {Black, Thick}, AspectRatio -> 1, Frame -> True, 
+			FrameLabel -> {"FPR", "TPR (recall or sensitivity)"}, 
+			LabelStyle -> Directive[Medium], Filling -> Top, 
+			FillingStyle -> LightBlue],
+		Sequence[Graphics[{Red, PointSize[Large],
+			Tooltip[Point[{Divide[#[[2, 1]], Total@#[[2]]], Divide[#[[1, 1]], Total@#[[1]]]}],
+         "FPR = " <> ToString[N@Divide[#[[2, 1]], Total@#[[2]]]] <>
+         "\nTPR (recall or sensitivity) = " <> ToString[N@Divide[#[[1, 1]], Total@#[[1]]]]
+         ]}
+		] & /@ If[Length@Dimensions[t] > 2, t, {t}]]
+]];
+
+Clear[dsClassifierProbTable]
+dsClassifierProbTable[classifier_, testData_, cmeasures_, cl_] := 
+ Module[{probabilityClass, sortedProbabilities, ordered, 
+   sortedTestclass, sortedPredictedclass},
+  probabilityClass = 
+   classifier[testData[[All, 1]], "Probability" -> cl];
+  sortedProbabilities = Reverse@Sort@probabilityClass;
+  ordered = Reverse@Ordering@probabilityClass;
+  sortedTestclass = testData[[ordered]][[All, 2]];
+  sortedPredictedclass = classifier[testData[[All, 1]]][[ordered]];
+  {
+    TableForm[
+     Transpose[{sortedTestclass, sortedProbabilities}],
+     TableHeadings -> {{}, {"True class", "Probability to be " <> cl}}
+     ],
+    cmeasures["ROCCurve"][[1]]
+    } // TableForm
 ];
 
 Print["wolframrc loaded"]
