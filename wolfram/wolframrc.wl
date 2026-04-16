@@ -344,4 +344,24 @@ dsClassifierProbTable[classifier_, testData_, cmeasures_, cl_] :=
     } // TableForm
 ];
 
+Clear[dsViewClassification]
+dsViewClassification[data1_, data2_, method_: "LogisticRegression", classifier_:{}] :=
+   Module[{c, line, points, pred},
+   If[Head[classifier]==List,
+   	c = Classify[<|"class 1" -> data1, "class 2" -> data2|>, Method -> method],
+   	c = classifier
+   ];
+   line = Range[0, 5, 0.05];
+   points = Tuples[line, 2];
+   pred = c[points];
+   temp = Tally[Sort[pred]];
+   Show[
+    ListPlot[{points[[Ordering[pred]]][[1 ;; temp[[1, 2]]]], points[[Ordering[pred]]][[temp[[1, 2]] + 1 ;; Length[pred]]]}, 
+	     PlotStyle -> {{RGBColor[0.97, 1., 0.55], PointSize[0.015]}, {RGBColor[0.5, 1, 0.5], PointSize[0.015]}}, PlotLegends -> {"Predicted 1", "Predicted 2"}],
+    ListPlot[{class1, class2}, PlotStyle -> PointSize[Large], PlotLegends -> {"Class 1", "Class 2"}], 
+    ListPlot[{unknown}, PlotStyle -> {Red, PointSize[0.03]}, 
+			PlotLegends -> {"unclassified"}], Graphics@Text[c[unknown]]
+    ]
+];
+
 Print["wolframrc loaded"]
