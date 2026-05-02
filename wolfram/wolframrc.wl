@@ -1,6 +1,7 @@
 (* set the context to the current notebook *)
 SetOptions[EvaluationNotebook[], CellContext -> Notebook]
 SetDirectory[NotebookDirectory[]]
+BayesianLinearRegression = ResourceFunction["BayesianLinearRegression"];
 
 (* Text functions *)
 Clear[dsFormatText]
@@ -25,6 +26,7 @@ dsColumnInsert[data_, colName_, newCol_] := Module[{newData},
    newData[[All, colName]] = newCol;
    newData
 ];
+dsColumnRename[data_,oldName_,newName_] := KeyMap[# /. oldName -> newName & #] & /@ data;
 
 (* Data cleanup *)
 Clear[dsCleanColumnNames]
@@ -111,7 +113,7 @@ Clear[dsColumnSummaryCategorical]
 dsColumnSummaryCategorical[col_List] := Module[{categories, counts},
 	categories = Sort@DeleteMissing@DeleteDuplicates@col;
 	counts = Map[Count[DeleteMissing[col], #] &, categories];
-	Append[counts, Count[col, _Missing]]
+	Append[counts, {"#N/A",Count[col, _Missing]}]
 ];
 
 Clear[dsColumnDisplayCategorical]
@@ -119,9 +121,11 @@ dsColumnDisplayCategorical[col_List] := Module[{categories, catCols},
 	categories = DeleteMissing@Union@col[[2 ;;]];
 	catCols = Map[Style[#, Bold, FontSize -> 16] &, Append[categories, "#NA"]];
 	Return[{
-		Join[{""}, catCols], 
-		Flatten[{Style[col[[1]], Bold, FontSize -> 16], 
-		dsColumnSummaryCategorical[col[[2 ;;]]]}],
+		Join[{""}, catCols],
+		Flatten[{
+				Style[col[[1]], Bold, FontSize -> 16], 
+				dsColumnSummaryCategorical[col[[2 ;;]]]
+			}],
 		Table["", {Length[catCols] + 1}]
 	}]
 ];
@@ -137,6 +141,7 @@ dsColumnNumericQ[col_List] := AllTrue[DeleteMissing[col], NumericQ];
 
 Clear[dsSummary]
 dsSummary[data_] := Module[{totalPts, totalNAs, numDataPositions, catDataPositions},
+	(* TODO fix parenthical removal on keys *)
 	totalPts = Length@data;
 	totalNAs = Length@Select[Values@data, MemberQ[#, Missing[]] &];
 	numDataPositions = Position[AllTrue[DeleteMissing[#], NumericQ] & /@ (data[[All, #]] & /@ Keys[data[[1]]]), True] // Flatten;
@@ -218,6 +223,14 @@ dsGetOutliers[model_, opts: OptionsPattern[]] := Module[{threshold},
 		# > threshold & -> "Index"
 	]
 ];
+Clear[dsShowOutliers]
+dsShowOutliers[model_,opts:OptionsPattern[]] := Module[{threshold},
+	threshold=Lookup[{opts},"threshold", .25];
+	BarChart[
+		MapIndexed[If[#1 > threshold, Callout[#1, #2[[1]]], #1] &, 
+		model["CookDistances"]]
+	]
+]
 
 dsHilightOutlierLinear[data_, column1_, column2_, opts: OptionsPattern[]] := Module[{linearModel},
 	linearModel = dsLinearModelFit[data,column1,column2];
