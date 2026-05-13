@@ -264,17 +264,17 @@ dsHilightOutlier[data_, column1_, column2_, model_, opts: OptionsPattern[]] := M
 ];
 
 (* TODO *)
-fracInWindow[data_, beg_, end_] := Module[{dataInWindow},
+dsMeanInWindow[data_, beg_, end_] := Module[{dataInWindow},
    dataInWindow = Select[data, beg <= #1[[1]] < end &];
-   
    N[If[Length[dataInWindow] === 0, 0, Mean[dataInWindow[[All, 2]]]]]
 ];
 
-binnedProbs[data_List, xMin_, xMax_, nBins_Integer] := Module[{dx},
-   dx = (xMax - xMin)/nBins;
-   
-   N[Table[{x, fracInWindow[data, x - dx/2, x + dx/2]}, {x, 
-      xMin + dx/2, xMax - dx/2, dx}]]
+dsBinnedProbabilities[data_List, range_List, nBins_Integer:20] := Module[{dx,min,max},
+	{min,max}=range;
+   dx = (max - min)/nBins;
+   N[Table[
+   	{x, dsMeanInWindow[data, x - dx/2, x + dx/2]},
+		{x, min + dx/2, max - dx/2, dx}]]
 ];
 
 
@@ -375,6 +375,72 @@ dsViewClassification[data1_, data2_, method_: "LogisticRegression", classifier_:
     ListPlot[{unknown}, PlotStyle -> {Red, PointSize[0.03]}, 
 			PlotLegends -> {"unclassified"}], Graphics@Text[c[unknown]]
     ]
+];
+
+Clear[dsCheckTimeSeriesModel]
+dsCheckTimeSeriesModel[model_]:=Module[{},
+	Column[{
+		GraphicsRow[{
+			ListLinePlot[#["FitResiduals"],PlotRange->All],
+			#["ACFPlot"],
+			#["PACFPlot"]
+		}, ImageSize->Full],
+		{
+			AutocorrelationTest[#["FitResiduals"]],
+			"  ---  is correlated (BAD) "->AutocorrelationTest[#["FitResiduals"]]<0.05
+		}//Row
+		}]&/@{model}//First
+];
+
+Clear[dsMakeTimeSeriesRegular]
+dsMakeTimeSeriesRegular[ts_] := Module[{regularTimeIntervals},
+   regularTimeIntervals = Range[
+     (*start*)ts["FirstTime"],
+     (*end*)ts["LastTime"],
+     (*steps*)(ts["LastTime"] - ts["FirstTime"])/(Length[Values@ts] - 1)
+   ];
+   TimeSeries[{#, ts[#]} & /@ regularTimeIntervals]
+];
+
+Clear[dsForecastWithUncertainty]
+dsForecastWithUncertainty[data_,modelIn_,startTime_,forecastTime_,manualRangeAdjust_ : 0] := Module[{model,handoffTime, rangeAdjust},
+	model = If[Equal[ToString@Head@modelIn, "TimeSeriesModel"], modelIn, TimeSeriesModelFit[data, modelIn]];
+   handoffTime = First@Floor@data["LastTimes"];
+   rangeAdjust = Subtract @@ Reverse@MinMax@Values@data;
+   rangeAdjust = rangeAdjust + manualRangeAdjust;
+   Show[
+   	ListLinePlot[data, PlotRange -> {{startTime, forecastTime}, {data[startTime] - rangeAdjust, model[forecastTime] + rangeAdjust}}],
+		Plot[{
+		      model[t],
+		      model["PredictionLimits"][t]
+	      },
+	      {t, handoffTime, forecastTime},
+			PlotStyle -> {Dashed, Gray}, Filling -> {1 -> {2}}, 
+			FillingStyle -> LightBlue
+		]
+]];
+
+Clear[dsMakeInitializedTimesSeriesModel]
+dsMakeInitializedTimesSeriesModel[data_,model_]:=Module[{},
+	Insert[model["BestFit"], data, -1]
+];
+
+Clear[dsSplitTree]
+dsSplitTree[data_,splitValue0_:-100]:=Module[{output,splitValue},
+	splitValue=If[splitValue0 == -100,Mean@data[[All,1]],splitValue0];
+	output=<|"splitValue"->splitValue|>;
+	output=Insert[output,{
+		"leftPosition"->Flatten@Position[data[[All,1]],_?(#<=splitValue&)],
+		"rightPosition"->Flatten@Position[data[[All,1]],_?(#>splitValue&)]
+	},-1];
+	output=Insert[output,{
+		"leftValue"->Mean[data[[output[["leftPosition"]],2]]],
+		"rightValue"->Mean[data[[output[["rightPosition"]],2]]]
+	},-1];
+	output=Insert[output,"jLoss"->Total[
+		(data[[output[["leftPosition"]],2]]-output[["leftValue"]])^2]
+		+ Total[(data[[output[["rightPosition"]],2]]-output[["rightValue"]])^2],-1];
+	Return[output]
 ];
 
 Print["wolframrc loaded"]
