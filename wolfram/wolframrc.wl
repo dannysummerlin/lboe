@@ -425,6 +425,15 @@ dsMakeInitializedTimesSeriesModel[data_,model_]:=Module[{},
 	Insert[model["BestFit"], data, -1]
 ];
 
+Clear[dsRemovePeriodicAverages]
+dsRemovePeriodicAverages[tseries_,periodLength_:12]:=Module[{cyclicalAverages},
+	cyclicalAverages=Mean@Partition[Values@tseries,periodLength];
+	tseries-TimeSeries[
+		Flatten[Table[cyclicalAverages, Ceiling[Subtract[Sequence@@Reverse@MinMax@Keys@tseries]] * periodLength]][[;;Length@Values@tseries]],
+		{Keys@tseries}
+	]
+];
+
 Clear[dsSplitTree]
 dsSplitTree[data_,splitValue0_:-100]:=Module[{output,splitValue},
 	splitValue=If[splitValue0 == -100,Mean@data[[All,1]],splitValue0];
@@ -441,6 +450,19 @@ dsSplitTree[data_,splitValue0_:-100]:=Module[{output,splitValue},
 		(data[[output[["leftPosition"]],2]]-output[["leftValue"]])^2]
 		+ Total[(data[[output[["rightPosition"]],2]]-output[["rightValue"]])^2],-1];
 	Return[output]
+];
+
+Clear[dsBaysianDistCheck]
+dsBaysianDistCheck[n_,k_,numOutcomes_,searchStart_:0.01]:=Module[{probCheck},
+	probCheck=1/numOutcomes;
+	<|
+		"unbiased probability of outcome"->N@probCheck,
+		"probability of bias"->PercentForm[1-NProbability[p>=probCheck,Distributed[p,BetaDistribution[k+1,n+1-k]]]],
+		"p-value"->N@Probability[p>=probCheck,Distributed[p,BetaDistribution[k+1,n+1-k]]],
+		"significant p-value"->Probability[p>=probCheck,Distributed[p,BetaDistribution[k+1,n+1-k]]]<0.05,
+		"starting from "<>ToString@searchStart<>" maximum at"->FindMaximum[PDF[BetaDistribution[k+1,n+1-k]][p],{p,searchStart}],
+		"width/std dev"->N@StandardDeviation[BetaDistribution[k+1,n+1-k]]
+	|>
 ];
 
 Print["wolframrc loaded"]
