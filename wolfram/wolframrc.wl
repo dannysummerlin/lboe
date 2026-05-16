@@ -506,7 +506,17 @@ dsFindBestKmcErrorRate[data_,maxK_:20]:=Module[{},
 	ListPlot[Abs@Differences[
 		dsErrorForKmcSize[data,#]&/@Range[maxK]
 	], ImageSize -> Scaled@.4]
-]
+];
+
+Clear[dsPurity]
+dsPurity[data_,classifier_,trueclasses_]:=Module[{},
+	N@Divide[
+		Total[Table[
+			Count[classifier[trueclasses[[i]]],First@Commonest[classifier[trueclasses[[i]]]] ],
+			{i,1,Length[trueclasses]}]
+		],
+		Length@data
+]];
 
 Clear[dsBaysianDistCheck]
 dsBaysianDistCheck[n_,k_,numOutcomes_,searchStart_:0.01]:=Module[{probCheck},
