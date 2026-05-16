@@ -173,6 +173,19 @@ LinearModelFit[
  *)
 ]];
 
+Clear[dsPlotStdDevRegion]
+dsPlotStdDevRegion[p_,data_,xmin_,xmax_]:=Module[{},
+	Show[
+		Plot[{
+				p[x],
+				p[x]+StandardDeviation[p[x,"Distribution"]],p[x]-StandardDeviation[p[x,"Distribution"]]
+			},{x,xmin,xmax},
+			PlotStyle->{Blue,Gray,Gray},
+			Filling->{2->{3}},
+			PlotLegends->{"Prediction","Confidence Interval"}],
+		ListPlot[data,PlotStyle->Red,PlotLegends->{"Data"}]
+]];
+
 dsScatterPlotMatrix[groupedValues_, features_, valueClasses_List, lower_ : 0, upperLim_ : 0] := Module[{classes, pos, legend, upper},
 	upper = If[upperLim == 0, Max@DeleteCases[dataSources // Values // Normal // Values // Flatten, _String], upperLim];
 	classes = Union[valueClasses];
@@ -322,7 +335,6 @@ dsRocPlot[t_] := Module[{tpr, fpr},
 	]
 ];
 
-Clear[dsRocPlot]
 dsRocPlot[t_List] := Module[{},
 	Show[
    	Plot[x, {x, 0, 1}, PlotRange -> {{0, 1}, {0, 1}}, 
@@ -451,6 +463,50 @@ dsSplitTree[data_,splitValue0_:-100]:=Module[{output,splitValue},
 		+ Total[(data[[output[["rightPosition"]],2]]-output[["rightValue"]])^2],-1];
 	Return[output]
 ];
+
+Clear[dsKmcFindCenters]
+dsKmcFindCenters[data_, opts: OptionsPattern[]]:=Module[{kCategories,currentCentroids,distToCenters,tempClusters,loops},
+	kCategories=Lookup[{opts},"kCategories", 2];
+	loops=Lookup[{opts},"loops", 5];
+	currentCentroids=Lookup[{opts},"startingCentroids", RandomSample[data, kCategories]];
+   Do[
+      distToCenters = Table[
+         EuclideanDistance[data[[i]], currentCentroids[[#]]] & /@ Range@kCategories,
+         {i, 1, Length[data]}
+      ];
+      assigned = Flatten[Table[
+         Position[distToCenters[[i]], Min[distToCenters[[i]]]],
+         {i, 1, Length[data]}
+      ]];
+      tempClusters = Table[
+         data[[ Flatten[Position[assigned, j]] ]],
+         {j,Range@kCategories}
+      ];
+      currentCentroids = Table[
+         {Mean[tempClusters[[j, All, 1]]], Mean[tempClusters[[j, All, 2]]]},
+         {j, Range@kCategories}];
+   , loops];
+   currentCentroids
+];
+
+Clear[dsErrorForKmcSize]
+dsErrorForKmcSize[data_,k_]:=Module[{clusters,centers,error},
+	clusters=FindClusters[data, k, Method->"KMeans"];
+	centers=Table[Mean[clusters[[i]]],{i, Range@k}];
+	error=Total[Table[
+			EuclideanDistance[clusters[[i, j]], centers[[i]]]^2,
+			{i, 1, Length[centers]},
+			{j, 1, Length[clusters[[i]]]}
+		],All];
+	error
+];
+
+Clear[dsFindBestKmcErrorRate]
+dsFindBestKmcErrorRate[data_,maxK_:20]:=Module[{},
+	ListPlot[Abs@Differences[
+		dsErrorForKmcSize[data,#]&/@Range[maxK]
+	], ImageSize -> Scaled@.4]
+]
 
 Clear[dsBaysianDistCheck]
 dsBaysianDistCheck[n_,k_,numOutcomes_,searchStart_:0.01]:=Module[{probCheck},
