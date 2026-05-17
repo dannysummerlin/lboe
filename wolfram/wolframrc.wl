@@ -518,6 +518,18 @@ dsPurity[data_,classifier_,trueclasses_]:=Module[{},
 		Length@data
 ]];
 
+Clear[dsReduceColor]
+dsReduceColor[image_Image,K_]:=Module[{size,data,colorNumbers,avgColors,clusters},
+	size=Information[image,"ImageDimensions"];
+	data=Flatten[ImageData[image],1];
+	colorNumbers=ClusterClassify[data,K,Method->"KMeans",DistanceFunction->EuclideanDistance][data];
+	clusters=Table[
+		data[[ Flatten[Position[colorNumbers,i]] ]],
+		{i,1,K}];
+	avgColors=Table[ Mean[clusters[[i]]],{i,1,K}];
+	Image[Partition[colorNumbers /. Table[i->avgColors[[i]],{i,1,K}], size[[1]]]]
+];
+
 Clear[dsBaysianDistCheck]
 dsBaysianDistCheck[n_,k_,numOutcomes_,searchStart_:0.01]:=Module[{probCheck},
 	probCheck=1/numOutcomes;
