@@ -1,6 +1,6 @@
 {
   "$schema": "https://vega.github.io/schema/vega/v5.json",
-  "description": "Generic percentage gauge for Power BI, theme-aware colors, target label, fallback",
+  "description": "Generic percentage gauge, theme-aware colors, target label, fallback",
   "padding": 0,
   "autosize": "fit",
 
@@ -63,7 +63,8 @@
           "cornerRadius": { "value": 4 }
         },
         "update": {
-          "fill": { "signal": "pbiColor(0, 0.85)" }
+          "fill": { "signal": "pbiColor(0, 0.85)" },
+          "tooltip": { "signal": "datum" }
         }
       }
     },
@@ -82,7 +83,8 @@
         "update": {
           "startAngle": { "value": -1.5707963267948966 },
           "endAngle":   { "signal": "-1.5707963267948966 + clampedValue * PI" },
-          "fill": { "signal": "pbiColor(0)" }
+          "fill": { "signal": "pbiColor(0)" },
+          "tooltip": { "signal": "datum" }
         }
       }
     },
