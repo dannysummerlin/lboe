@@ -1,0 +1,159 @@
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "Generic percentage gauge for Power BI, theme-aware colors, target label, fallback",
+  "padding": 0,
+  "autosize": "fit",
+
+  "signals": [
+    { "name": "centerX", "update": "width/2" },
+    { "name": "centerY", "update": "height - 12" },
+    { "name": "radius", "update": "min(width/2, height) - 16" },
+    { "name": "innerRadius", "update": "radius * 0.66" },
+
+    { "name": "row", "update": "length(data('dataset')) > 0 ? data('dataset')[0] : {}" },
+    { "name": "maxValue",    "update": "row['max']" },
+    { "name": "actualValue", "update": "row['actual']" },
+
+    { "name": "hasData", "update": "isValid(maxValue) && isNumber(maxValue) && isValid(actualValue) && isNumber(actualValue)" },
+
+    { "name": "ratio",        "update": "maxValue > 0 ? actualValue / maxValue : 0" },
+    { "name": "clampedValue", "update": "clamp(ratio, 0, 1)" }
+  ],
+
+  "data": [
+    { "name": "dataset" },
+    {
+      "name": "gaugeData",
+      "source": "dataset",
+      "transform": [
+        { "type": "filter", "expr": "hasData" }
+      ]
+    },
+    {
+      "name": "targetData",
+      "source": "dataset",
+      "transform": [
+        { "type": "filter", "expr": "hasData && isValid(datum['target']) && isNumber(datum['target'])" },
+        { "type": "formula", "as": "tRatio", "expr": "maxValue > 0 ? clamp(datum['target'] / maxValue, 0, 1) : 0" },
+        { "type": "formula", "as": "tAngle", "expr": "-1.5707963267948966 + datum.tRatio * PI" }
+      ]
+    },
+    {
+      "name": "fallbackData",
+      "values": [ {} ],
+      "transform": [
+        { "type": "filter", "expr": "!hasData" }
+      ]
+    }
+  ],
+
+  "marks": [
+    {
+      "type": "arc",
+      "name": "background",
+      "from": { "data": "gaugeData" },
+      "encode": {
+        "enter": {
+          "x": { "signal": "centerX" },
+          "y": { "signal": "centerY" },
+          "startAngle": { "value": -1.5707963267948966 },
+          "endAngle":   { "value":  1.5707963267948966 },
+          "innerRadius": { "signal": "innerRadius" },
+          "outerRadius": { "signal": "radius" },
+          "cornerRadius": { "value": 4 }
+        },
+        "update": {
+          "fill": { "signal": "pbiColor(0, 0.85)" }
+        }
+      }
+    },
+    {
+      "type": "arc",
+      "name": "valueArc",
+      "from": { "data": "gaugeData" },
+      "encode": {
+        "enter": {
+          "x": { "signal": "centerX" },
+          "y": { "signal": "centerY" },
+          "innerRadius": { "signal": "innerRadius" },
+          "outerRadius": { "signal": "radius" },
+          "cornerRadius": { "value": 4 }
+        },
+        "update": {
+          "startAngle": { "value": -1.5707963267948966 },
+          "endAngle":   { "signal": "-1.5707963267948966 + clampedValue * PI" },
+          "fill": { "signal": "pbiColor(0)" }
+        }
+      }
+    },
+    {
+      "type": "rule",
+      "name": "targetMarker",
+      "from": { "data": "targetData" },
+      "encode": {
+        "update": {
+          "x":  { "signal": "centerX + (innerRadius - 6) * sin(datum.tAngle)" },
+          "y":  { "signal": "centerY - (innerRadius - 6) * cos(datum.tAngle)" },
+          "x2": { "signal": "centerX + (radius + 6) * sin(datum.tAngle)" },
+          "y2": { "signal": "centerY - (radius + 6) * cos(datum.tAngle)" },
+          "stroke": { "signal": "pbiColor(1)" },
+          "strokeWidth": { "value": 3 }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "targetLabel",
+      "from": { "data": "targetData" },
+      "encode": {
+        "enter": {
+          "fontSize": { "value": 34 },
+          "fontWeight": { "value": "bold" }
+        },
+        "update": {
+          "x": { "signal": "centerX + (radius + 13) * sin(datum.tAngle)" },
+          "y": { "signal": "centerY - (radius + 13) * cos(datum.tAngle)" },
+          "text": { "signal": "format(datum.tRatio, '.0%')" },
+          "align": { "signal": "datum.tAngle < -0.15 ? 'right' : (datum.tAngle > 0.15 ? 'left' : 'center')" },
+          "baseline": { "signal": "cos(datum.tAngle) > 0.7 ? 'bottom' : 'middle'" },
+          "fill": { "signal": "pbiColor(1)" }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "label",
+      "from": { "data": "gaugeData" },
+      "encode": {
+        "enter": {
+          "x": { "signal": "centerX" },
+          "y": { "signal": "centerY - 40" },
+          "align": { "value": "center" },
+          "baseline": { "value": "middle" },
+          "fontSize": { "value": 80 },
+          "fontWeight": { "value": "bold" }
+        },
+        "update": {
+          "text": { "signal": "format(ratio, '.0%')" },
+          "fill": { "signal": "pbiColor(0, -0.4)" }
+        }
+      }
+    },
+    {
+      "type": "text",
+      "name": "fallbackText",
+      "from": { "data": "fallbackData" },
+      "encode": {
+        "enter": {
+          "x": { "signal": "width/2" },
+          "y": { "signal": "height/2" },
+          "align": { "value": "center" },
+          "baseline": { "value": "middle" },
+          "fontSize": { "value": 28 },
+          "fill": { "value": "#605E5C" },
+          "text": { "value": "Name the 'max' and 'actual' values respectively." }
+        }
+      }
+    }
+  ]
+}
