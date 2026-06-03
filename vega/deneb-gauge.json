@@ -34,7 +34,7 @@
       "source": "dataset",
       "transform": [
         { "type": "filter", "expr": "hasData && isValid(datum['target']) && isNumber(datum['target'])" },
-        { "type": "formula", "as": "tRatio", "expr": "maxValue > 0 ? clamp(datum['target'] / maxValue, 0, 1) : 0" },
+        { "type": "formula", "as": "tRatio", "expr": "maxValue > 0 ? clamp(datum['target'], 0, 1) : 0" },
         { "type": "formula", "as": "tAngle", "expr": "-1.5707963267948966 + datum.tRatio * PI" }
       ]
     },
